@@ -30,7 +30,17 @@ export async function apiRequest<T>(path: ApiPath, options: ApiOptions = {}): Pr
     if (options.signal?.aborted) throw cause;
     throw new ApiError(0);
   }
-  if (!response.ok) throw new ApiError(response.status);
+  if (!response.ok) {
+    let code = '';
+    try {
+      const body = await response.json() as { code?: unknown; error?: { code?: unknown } };
+      const value = body.code ?? body.error?.code;
+      if (typeof value === 'string') code = value;
+    } catch {
+      if (options.signal?.aborted) throw new DOMException('Request cancelled', 'AbortError');
+    }
+    throw new ApiError(response.status, code);
+  }
   if (response.status === 204 || response.headers.get('content-length') === '0')
     return undefined as T;
   try {

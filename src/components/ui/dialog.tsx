@@ -6,11 +6,13 @@ export function Dialog({
   title,
   children,
   onClose,
+  initialFocus = 'input',
 }: {
   open: boolean;
   title: string;
   children: ReactNode;
   onClose: () => void;
+  initialFocus?: 'input' | 'cancel';
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -19,11 +21,13 @@ export function Dialog({
     if (!dialog || !open) return;
     const trigger = document.activeElement;
     dialog.showModal();
+    const first = initialFocus === 'input' ? dialog.querySelector<HTMLElement>('input, select, textarea') : null;
+    (first ?? dialog.querySelector<HTMLElement>('[data-cancel]'))?.focus();
     return () => {
       dialog.close();
       if (trigger instanceof HTMLElement) trigger.focus();
     };
-  }, [open]);
+  }, [open, initialFocus]);
   return (
     <dialog
       ref={ref}
@@ -34,7 +38,7 @@ export function Dialog({
       }}
     >
       <h2 id={titleId}>{title}</h2>
-      <Button autoFocus onClick={onClose}>
+      <Button data-cancel onClick={onClose}>
         취소
       </Button>
       {children}
