@@ -190,6 +190,7 @@ td {
   border-bottom: 1px solid hsl(var(--border));
 }
 .app-header {
+  position: relative;
   display: flex;
   padding: 0 max(16px, env(safe-area-inset-left));
   border-bottom: 1px solid hsl(var(--border));
@@ -315,7 +316,7 @@ p {
 .account-pop {
   position: absolute;
   right: 16px;
-  top: 54px;
+  top: calc(100% + 8px);
   padding: 16px;
   z-index: 5;
 }

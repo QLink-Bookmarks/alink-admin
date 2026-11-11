@@ -21,6 +21,7 @@ const deniedCodes = new Set([
   'POST_403_0002',
   'AI_404_0004',
   'POST_404_0003',
+  'POST_404_0001',
   'USER_404_0001',
 ]);
 function publish(value: Session) {
@@ -83,6 +84,20 @@ export const session = {
   setCacheClearer(callback: () => void) {
     clearCache = callback;
   },
+  suspend() {
+    generation++;
+    accessToken = undefined;
+    clearCache();
+    publish({ status: 'loading' });
+  },
+  async restore() {
+    try {
+      await refresh();
+      await session.loadProfile();
+    } catch {
+      if (snapshot.status === 'loading') publish({ status: 'guest' });
+    }
+  },
   bootstrap() {
     if (!booting)
       booting = (async () => {
@@ -104,6 +119,7 @@ export const session = {
     publish({ status: 'authenticated', profile });
   },
   async login(credential: string) {
+    await session.bootstrap();
     const current = generation;
     const result = await signIn(credential);
     if (current !== generation) return;
@@ -112,9 +128,17 @@ export const session = {
   },
   async logout() {
     const token = accessToken;
+    const pendingRefresh = refreshing;
     endSession(false, false);
     try {
-      await signOut(token);
+      await pendingRefresh?.catch(() => {});
+      try {
+        await signOut(token);
+      } catch (cause) {
+        if (!(cause instanceof ApiError) || cause.status !== 401) throw cause;
+        const renewed = await refreshToken();
+        await signOut(renewed.accessToken);
+      }
     } catch {
       publish({ status: 'guest', reason: '로그아웃 요청을 완료하지 못했어요. 다시 시도해 주세요' });
     }

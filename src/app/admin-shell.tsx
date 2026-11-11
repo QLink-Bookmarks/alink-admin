@@ -40,7 +40,7 @@ export function AdminShell() {
               ['/announcements', '공지사항'],
               ['/feedbacks', '피드백'],
             ].map(([to, label]) => (
-              <NavLink key={to} to={to!}>
+              <NavLink key={to} to={to!} onClick={() => setAccountOpen(false)}>
                 {label}
               </NavLink>
             ))}

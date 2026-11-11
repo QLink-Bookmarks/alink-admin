@@ -30,7 +30,7 @@ describe('admin session boundaries', () => {
     expect(refreshes).toBe(2);
     expect(session.getSnapshot().status).toBe('authenticated');
   });
-  it.each(['AI_403_0002', 'POST_403_0002', 'AI_404_0004', 'POST_404_0003'])(
+  it.each(['AI_403_0002', 'POST_403_0002', 'AI_404_0004', 'POST_404_0003', 'POST_404_0001'])(
     'clears sensitive data immediately for %s',
     async (code) => {
       const clear = vi.fn();

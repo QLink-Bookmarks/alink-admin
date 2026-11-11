@@ -9,7 +9,9 @@ type TextFieldProps = InputHTMLAttributes<HTMLInputElement> & {
 export function TextField({ label, description, error, id, ...props }: TextFieldProps) {
   const generatedId = useId();
   const inputId = id ?? generatedId;
-  const help = error ?? description;
+  const helpIds = [description && `${inputId}-description`, error && `${inputId}-error`]
+    .filter(Boolean)
+    .join(' ');
   return (
     <div className="field">
       <label htmlFor={inputId}>{label}</label>
@@ -17,11 +19,12 @@ export function TextField({ label, description, error, id, ...props }: TextField
         {...props}
         id={inputId}
         aria-invalid={error ? true : undefined}
-        aria-describedby={help ? `${inputId}-help` : undefined}
+        aria-describedby={helpIds || undefined}
       />
-      {help && (
-        <p id={`${inputId}-help`} role={error ? 'alert' : undefined}>
-          {help}
+      {description && <p id={`${inputId}-description`}>{description}</p>}
+      {error && (
+        <p id={`${inputId}-error`} role="alert">
+          {error}
         </p>
       )}
     </div>

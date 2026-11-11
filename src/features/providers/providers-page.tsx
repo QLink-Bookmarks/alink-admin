@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
@@ -18,6 +19,8 @@ import {
   type ProviderType,
 } from './api';
 import { useProvider, useProviders, useRefreshProviders } from './queries';
+import { providerKeys } from './queries';
+import { ApiError } from '../../lib/api-error';
 import { officialHosts, validBaseUrl } from './validation';
 import { ModelForm } from './model-form';
 
@@ -151,7 +154,11 @@ function ProviderCreate({
         label="기본 URL"
         value={url}
         readOnly={action.pending}
-        error={invalid ? '업체의 공식 API 주소만 쓸 수 있어요' : undefined}
+        error={
+          invalid || action.code === 'AI_400_0004'
+            ? '업체의 공식 API 주소만 쓸 수 있어요'
+            : undefined
+        }
         onChange={(event) => setUrl(event.target.value)}
       />
       <p className="note">새 제공자는 비활성으로 추가돼요</p>
@@ -166,13 +173,18 @@ function ProviderCreate({
 function ProviderPanel({ id }: { id: string }) {
   const query = useProvider(id);
   const refresh = useRefreshProviders();
+  const client = useQueryClient();
+  useEffect(() => {
+    if (query.error instanceof ApiError && query.error.status === 404)
+      void client.invalidateQueries({ queryKey: providerKeys.list });
+  }, [query.error, client]);
   const provider = query.data;
   const [draftUrl, setUrl] = useState<string | null>(null);
   const url = draftUrl ?? provider?.baseUrl ?? '';
   const [invalid, setInvalid] = useState(false);
   const [editing, setEditing] = useState<Model | 'new' | null>(null);
   const [confirm, setConfirm] = useState<Model | 'provider' | null>(null);
-  const action = useSaveAction();
+  const action = useSaveAction(refresh);
   const handleSaved = async () => {
     await refresh();
     setEditing(null);
@@ -216,7 +228,11 @@ function ProviderPanel({ id }: { id: string }) {
                 label="기본 URL"
                 value={url}
                 description={`공식 호스트: ${officialHosts[provider.type]}`}
-                error={invalid ? '업체의 공식 API 주소만 쓸 수 있어요' : undefined}
+                error={
+                  invalid || action.code === 'AI_400_0004'
+                    ? '업체의 공식 API 주소만 쓸 수 있어요'
+                    : undefined
+                }
                 readOnly={action.pending}
                 onChange={(event) => setUrl(event.target.value)}
               />
@@ -384,12 +400,32 @@ function ModelActions({
   onEdit: () => void;
   onState: () => void;
 }) {
+  const ref = useRef<HTMLDetailsElement>(null);
+  const handleAction = (action: () => void) => {
+    if (ref.current) {
+      ref.current.open = false;
+      ref.current.querySelector('summary')?.focus();
+    }
+    action();
+  };
   return (
-    <details className="row-menu">
+    <details
+      className="row-menu"
+      ref={ref}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          if (ref.current) ref.current.open = false;
+          ref.current?.querySelector('summary')?.focus();
+        }
+      }}
+    >
       <summary aria-label={`${model.model} 행 메뉴`}>⋯</summary>
       <div className="menu-panel">
-        <Button onClick={onEdit}>수정</Button>
-        <Button onClick={onState}>{model.isActive ? '비활성화' : '활성화'}</Button>
+        <Button onClick={() => handleAction(onEdit)}>수정</Button>
+        <Button onClick={() => handleAction(onState)}>
+          {model.isActive ? '비활성화' : '활성화'}
+        </Button>
       </div>
     </details>
   );

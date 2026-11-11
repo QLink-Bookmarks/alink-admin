@@ -1,4 +1,5 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { createBrowserRouter, Navigate, redirect } from 'react-router-dom';
+import { session } from '../features/auth/session';
 import { LoginPage } from '../features/auth/login-page';
 import { AdminShell } from './admin-shell';
 import { ProvidersPage } from '../features/providers/providers-page';
@@ -11,6 +12,10 @@ export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
   {
     element: <AdminShell />,
+    loader: async () => {
+      await session.bootstrap();
+      return session.getSnapshot().status === 'guest' ? redirect('/login') : null;
+    },
     children: [
       { path: '/providers', element: <ProvidersPage /> },
       { path: '/providers/:id', element: <ProvidersPage /> },

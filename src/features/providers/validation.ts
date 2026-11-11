@@ -12,6 +12,7 @@ export function validBaseUrl(type: ProviderType, value: string) {
     return (
       value.length <= 255 &&
       value === value.trim() &&
+      !/[?#]/.test(value) &&
       url.protocol === 'https:' &&
       url.hostname === officialHosts[type] &&
       !url.port &&

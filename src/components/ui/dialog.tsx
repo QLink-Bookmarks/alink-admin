@@ -16,6 +16,9 @@ export function Dialog({
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
+  const handleClose = () => {
+    if (!ref.current?.querySelector('[aria-busy="true"]')) onClose();
+  };
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog || !open) return;
@@ -35,13 +38,30 @@ export function Dialog({
     <dialog
       ref={ref}
       aria-labelledby={titleId}
+      onKeyDown={(event) => {
+        if (event.key !== 'Tab') return;
+        const controls = [
+          ...event.currentTarget.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex="0"]',
+          ),
+        ].filter((element) => element.checkVisibility());
+        const first = controls[0];
+        const last = controls.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }}
       onCancel={(event) => {
         event.preventDefault();
-        onClose();
+        handleClose();
       }}
     >
       <h2 id={titleId}>{title}</h2>
-      <Button data-cancel onClick={onClose}>
+      <Button data-cancel onClick={handleClose}>
         취소
       </Button>
       {children}

@@ -40,6 +40,13 @@ function Editor({ post }: { post?: Post }) {
   const [unknown, setUnknown] = useState(false);
   const [checkedList, setCheckedList] = useState(false);
   const action = useSaveAction();
+  const titleError =
+    errors.title ??
+    (['POST_400_0001', 'POST_400_0002'].includes(action.code)
+      ? '제목을 1~100자로 입력해 주세요'
+      : undefined);
+  const contentsError =
+    errors.contents ?? (action.code === 'POST_400_0003' ? '본문을 입력해 주세요' : undefined);
   const upload = useSaveAction();
   const refresh = useRefreshAnnouncements();
   const navigate = useNavigate();
@@ -111,20 +118,57 @@ function Editor({ post }: { post?: Post }) {
           label="제목"
           value={title}
           description={`${title.length} / 100자`}
-          error={errors.title}
+          error={titleError}
           readOnly={action.pending}
           onChange={(event) => setTitle(event.target.value)}
         />
-        <div className="editor-tabs" role="tablist" aria-label="편집기 보기">
-          <Button role="tab" aria-selected={tab === 'write'} onClick={() => setTab('write')}>
+        <div
+          className="editor-tabs"
+          role="tablist"
+          aria-label="편집기 보기"
+          onKeyDown={(event) => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+            event.preventDefault();
+            const next =
+              event.key === 'Home'
+                ? 'write'
+                : event.key === 'End'
+                  ? 'preview'
+                  : tab === 'write'
+                    ? 'preview'
+                    : 'write';
+            setTab(next);
+            document.getElementById(`editor-${next}-tab`)?.focus();
+          }}
+        >
+          <Button
+            id="editor-write-tab"
+            aria-controls="editor-write-panel"
+            tabIndex={tab === 'write' ? 0 : -1}
+            role="tab"
+            aria-selected={tab === 'write'}
+            onClick={() => setTab('write')}
+          >
             작성
           </Button>
-          <Button role="tab" aria-selected={tab === 'preview'} onClick={() => setTab('preview')}>
+          <Button
+            id="editor-preview-tab"
+            aria-controls="editor-preview-panel"
+            tabIndex={tab === 'preview' ? 0 : -1}
+            role="tab"
+            aria-selected={tab === 'preview'}
+            onClick={() => setTab('preview')}
+          >
             미리보기
           </Button>
         </div>
         <div className="editor" data-tab={tab}>
-          <section className="editor-write stack" aria-label="작성">
+          <section
+            className="editor-write stack"
+            id="editor-write-panel"
+            role="tabpanel"
+            aria-label="작성"
+          >
             <div className="toolbar row">
               <label
                 className="button upload-button"
@@ -183,12 +227,12 @@ function Editor({ post }: { post?: Post }) {
                 value={contents}
                 rows={16}
                 readOnly={action.pending}
-                aria-invalid={!!errors.contents}
+                aria-invalid={!!contentsError}
                 aria-describedby="contents-help"
                 onChange={(event) => setContents(event.target.value)}
               />
-              <p id="contents-help" role={errors.contents ? 'alert' : undefined}>
-                {errors.contents ?? '줄바꿈과 이미지·버튼·링크 태그를 사용할 수 있어요'}
+              <p id="contents-help" role={contentsError ? 'alert' : undefined}>
+                {contentsError ?? '줄바꿈과 이미지·버튼·링크 태그를 사용할 수 있어요'}
               </p>
             </div>
             {contents.length > 10000 && (
@@ -197,7 +241,12 @@ function Editor({ post }: { post?: Post }) {
               </p>
             )}
           </section>
-          <section className="preview card" aria-label="미리보기">
+          <section
+            className="preview card"
+            id="editor-preview-panel"
+            role="tabpanel"
+            aria-label="미리보기"
+          >
             <h2>미리보기</h2>
             <h3>{title || '제목'}</h3>
             <PostContent contents={contents} />

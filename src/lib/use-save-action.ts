@@ -1,22 +1,26 @@
 import { useRef, useState } from 'react';
 import { ApiError } from './api-error';
 
-export function useSaveAction() {
+export function useSaveAction(onMissing?: () => Promise<unknown>) {
   const locked = useRef(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
+  const [code, setCode] = useState('');
   const [notice, setNotice] = useState('');
   async function run(action: () => Promise<void>, message = '저장했어요') {
     if (locked.current) return false;
     locked.current = true;
     setPending(true);
     setError('');
+    setCode('');
     setNotice('');
     try {
       await action();
       setNotice(message);
       return true;
     } catch (cause) {
+      if (cause instanceof ApiError && cause.status === 404) await onMissing?.();
+      setCode(cause instanceof ApiError ? cause.code : '');
       setError(
         cause instanceof ApiError && cause.status === 404
           ? '이미 삭제됐어요'
@@ -32,5 +36,5 @@ export function useSaveAction() {
       setPending(false);
     }
   }
-  return { pending, error, notice, run, setError, setNotice };
+  return { pending, error, code, notice, run, setError, setNotice };
 }

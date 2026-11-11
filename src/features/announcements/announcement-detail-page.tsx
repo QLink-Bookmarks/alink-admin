@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '../../components/ui/button';
 import { Dialog } from '../../components/ui/dialog';
 import { PostContent } from '../../components/ui/post-content';
@@ -8,7 +9,7 @@ import { ApiError } from '../../lib/api-error';
 import { formatDate } from '../../lib/format';
 import { useSaveAction } from '../../lib/use-save-action';
 import { deleteAnnouncement } from './api';
-import { useAnnouncement, useRefreshAnnouncements } from './queries';
+import { announcementKeys, useAnnouncement, useRefreshAnnouncements } from './queries';
 
 export function AnnouncementDetailPage() {
   const { id = '' } = useParams();
@@ -19,9 +20,11 @@ export function AnnouncementDetailPage() {
   const refresh = useRefreshAnnouncements();
   const navigate = useNavigate();
   const location = useLocation();
+  const client = useQueryClient();
   useEffect(() => {
-    if (query.error instanceof ApiError && query.error.status === 404) void refresh();
-  }, [query.error, refresh]);
+    if (query.error instanceof ApiError && query.error.status === 404)
+      void client.invalidateQueries({ queryKey: announcementKeys.lists });
+  }, [query.error, client]);
   return (
     <div className="stack">
       <Link className="back-link" to="/announcements">
@@ -63,15 +66,17 @@ export function AnnouncementDetailPage() {
               aria-disabled={action.pending}
               onClick={() =>
                 void action.run(async () => {
+                  let notice = '삭제했어요';
                   try {
                     await deleteAnnouncement(post.id);
                   } catch (cause) {
                     if (!(cause instanceof ApiError && cause.status === 404)) throw cause;
+                    notice = '이미 삭제됐어요';
                   }
                   await refresh();
                   void navigate('/announcements', {
                     replace: true,
-                    state: { notice: '삭제했어요' },
+                    state: { notice },
                   });
                 }, '삭제했어요')
               }

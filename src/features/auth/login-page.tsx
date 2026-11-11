@@ -68,7 +68,8 @@ export function LoginPage() {
     script.onerror = () => {
       if (active) setError('Google 로그인을 불러오지 못했어요. 다시 시도해 주세요');
     };
-    document.head.append(script);
+    if (window.google?.accounts.id.renderButton) render();
+    else document.head.append(script);
     return () => {
       active = false;
       script.remove();
@@ -84,6 +85,9 @@ export function LoginPage() {
         </p>
         <h1 id="login-heading">관리자 로그인</h1>
         {state.reason && <p role="status">{state.reason}</p>}
+        {state.reason?.startsWith('로그아웃 요청') && (
+          <Button onClick={() => void session.logout()}>로그아웃 다시 시도</Button>
+        )}
         {pending ? (
           <p role="status">로그인 중이에요…</p>
         ) : (

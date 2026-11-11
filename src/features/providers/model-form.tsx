@@ -5,6 +5,7 @@ import { SaveStatus } from '../../components/ui/request-state';
 import { useSaveAction } from '../../lib/use-save-action';
 import { createModel, updateModel, type Model, type ProviderDetail } from './api';
 import { positiveInteger, validModelName } from './validation';
+import { useRefreshProviders } from './queries';
 
 export function ModelForm({
   provider,
@@ -20,7 +21,8 @@ export function ModelForm({
   const [rpd, setRpd] = useState(model?.rpdLimit?.toString() ?? '');
   const [tpd, setTpd] = useState(model?.tpdLimit?.toString() ?? '');
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const action = useSaveAction();
+  const refresh = useRefreshProviders();
+  const action = useSaveAction(refresh);
   return (
     <form
       aria-busy={action.pending}
@@ -62,7 +64,12 @@ export function ModelForm({
           value={name}
           readOnly={action.pending}
           error={
-            errors.name ?? (action.error === '이미 등록된 모델이에요' ? action.error : undefined)
+            errors.name ??
+            (action.code === 'AI_409_0002'
+              ? '이미 등록된 모델이에요'
+              : ['AI_400_0005', 'AI_400_0006', 'AI_400_0007'].includes(action.code)
+                ? '모델 식별자를 확인해 주세요'
+                : undefined)
           }
           onChange={(event) => setName(event.target.value)}
         />
@@ -72,7 +79,10 @@ export function ModelForm({
         inputMode="numeric"
         value={priority}
         readOnly={action.pending}
-        error={errors.priority}
+        error={
+          errors.priority ??
+          (action.code === 'AI_400_0008' ? '1 이상의 정수를 입력해 주세요' : undefined)
+        }
         onChange={(event) => setPriority(event.target.value)}
       />
       <TextField
@@ -81,7 +91,9 @@ export function ModelForm({
         value={rpd}
         description="비우면 제한 없음"
         readOnly={action.pending}
-        error={errors.rpd}
+        error={
+          errors.rpd ?? (action.code === 'AI_400_0009' ? '일일 제한을 확인해 주세요' : undefined)
+        }
         onChange={(event) => setRpd(event.target.value)}
       />
       <TextField
@@ -90,7 +102,9 @@ export function ModelForm({
         value={tpd}
         description="비우면 제한 없음"
         readOnly={action.pending}
-        error={errors.tpd}
+        error={
+          errors.tpd ?? (action.code === 'AI_400_0009' ? '일일 제한을 확인해 주세요' : undefined)
+        }
         onChange={(event) => setTpd(event.target.value)}
       />
       <SaveStatus {...action} />
