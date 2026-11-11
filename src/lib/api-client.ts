@@ -33,7 +33,7 @@ export async function apiRequest<T>(path: ApiPath, options: ApiOptions = {}): Pr
   if (!response.ok) {
     let code = '';
     try {
-      const body = await response.json() as { code?: unknown; error?: { code?: unknown } };
+      const body = (await response.json()) as { code?: unknown; error?: { code?: unknown } };
       const value = body.code ?? body.error?.code;
       if (typeof value === 'string') code = value;
     } catch {

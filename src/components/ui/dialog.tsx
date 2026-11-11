@@ -21,7 +21,10 @@ export function Dialog({
     if (!dialog || !open) return;
     const trigger = document.activeElement;
     dialog.showModal();
-    const first = initialFocus === 'input' ? dialog.querySelector<HTMLElement>('input, select, textarea') : null;
+    const first =
+      initialFocus === 'input'
+        ? dialog.querySelector<HTMLElement>('input, select, textarea')
+        : null;
     (first ?? dialog.querySelector<HTMLElement>('[data-cancel]'))?.focus();
     return () => {
       dialog.close();

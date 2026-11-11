@@ -7,7 +7,10 @@ export function AppProviders({ children }: { children: ReactNode }) {
     () => new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 30_000 } } }),
   );
   useEffect(() => {
-    session.setCacheClearer(() => { void queryClient.cancelQueries(); queryClient.clear(); });
+    session.setCacheClearer(() => {
+      void queryClient.cancelQueries();
+      queryClient.clear();
+    });
     void session.bootstrap();
   }, [queryClient]);
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
