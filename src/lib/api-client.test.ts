@@ -42,6 +42,11 @@ describe('admin transport', () => {
     await expect(apiRequest('/api/users/me')).rejects.toThrow('다시 시도해 주세요');
   });
 
+  it('hides malformed upstream response details', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('sensitive malformed response')));
+    await expect(apiRequest('/api/users/me')).rejects.toThrow('요청을 완료하지 못했어요');
+  });
+
   it('rejects traversal before sending an authorization token', async () => {
     const fetcher = vi.fn();
     vi.stubGlobal('fetch', fetcher);

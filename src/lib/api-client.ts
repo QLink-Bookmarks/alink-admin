@@ -34,5 +34,10 @@ export async function apiRequest<T>(path: ApiPath, options: ApiOptions = {}): Pr
   if (response.status === 204 || response.headers.get('content-length') === '0')
     return undefined as T;
   const body = await response.text();
-  return body ? (JSON.parse(body) as T) : (undefined as T);
+  if (!body) return undefined as T;
+  try {
+    return JSON.parse(body) as T;
+  } catch {
+    throw new ApiError(0);
+  }
 }
