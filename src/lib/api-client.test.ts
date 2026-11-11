@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiRequest } from './api-client';
+import { ApiError } from './api-error';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -45,6 +46,37 @@ describe('admin transport', () => {
   it('hides malformed upstream response details', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('sensitive malformed response')));
     await expect(apiRequest('/api/users/me')).rejects.toThrow('요청을 완료하지 못했어요');
+  });
+
+  it('normalizes body stream failures after fetch succeeds', async () => {
+    const response = new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.error(new Error('synthetic upstream body failure detail'));
+        },
+      }),
+    );
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
+    const result = apiRequest('/api/users/me');
+    await expect(result).rejects.toBeInstanceOf(ApiError);
+    await expect(result).rejects.toMatchObject({
+      status: 0,
+      message: '요청을 완료하지 못했어요. 다시 시도해 주세요',
+    });
+  });
+
+  it('preserves request cancellation while reading the response body', async () => {
+    const controller = new AbortController();
+    const cancellation = new DOMException('Request cancelled', 'AbortError');
+    const response = new Response();
+    vi.spyOn(response, 'text').mockImplementation(async () => {
+      controller.abort();
+      throw cancellation;
+    });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
+    await expect(apiRequest('/api/users/me', { signal: controller.signal })).rejects.toBe(
+      cancellation,
+    );
   });
 
   it('rejects traversal before sending an authorization token', async () => {
