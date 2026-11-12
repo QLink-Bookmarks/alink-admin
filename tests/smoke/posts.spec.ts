@@ -122,6 +122,30 @@ test('unknown create result requires list check and preserves draft', async ({ p
   );
 });
 
+test('mobile preview returns to the body field for local and server blank-body errors', async ({
+  page,
+}) => {
+  test.skip((page.viewportSize()?.width ?? 1280) > 768);
+  const state = await installFixture(page);
+  await page.goto('/announcements/new');
+  await page.getByLabel('제목', { exact: true }).fill('본문 오류 확인');
+  await page.getByRole('tab', { name: '미리보기' }).click();
+  await page.getByRole('button', { name: '등록하고 알림 보내기' }).click();
+  await expect(page.getByRole('tabpanel', { name: '작성' })).toBeVisible();
+  await expect(page.getByLabel('본문', { exact: true })).toBeFocused();
+  await expect(page.getByText('본문을 입력해 주세요')).toBeVisible();
+
+  await page.getByLabel('본문', { exact: true }).fill('서버에서 거절된 본문');
+  await page.getByRole('tab', { name: '미리보기' }).click();
+  state.fail = 'POST /api/posts';
+  state.failStatus = 400;
+  state.failCode = 'POST_400_0003';
+  await page.getByRole('button', { name: '등록하고 알림 보내기' }).click();
+  await expect(page.getByRole('tabpanel', { name: '작성' })).toBeVisible();
+  await expect(page.getByLabel('본문', { exact: true })).toBeFocused();
+  await expect(page.getByText('본문을 입력해 주세요')).toBeVisible();
+});
+
 test('edit network retry, immutable DTO, long contents warning, delete cancel and already deleted', async ({
   page,
 }) => {

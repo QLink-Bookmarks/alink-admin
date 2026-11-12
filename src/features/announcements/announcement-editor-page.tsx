@@ -52,6 +52,7 @@ function Editor({ post }: { post?: Post }) {
   const navigate = useNavigate();
   const allowLeave = useRef(false);
   const form = useRef<HTMLFormElement>(null);
+  const bodyInput = useRef<HTMLTextAreaElement>(null);
   const dirty = title !== (post?.title ?? '') || contents !== (post?.contents ?? '');
   const blocker = useBlocker(
     () => !allowLeave.current && (dirty || action.pending || upload.pending),
@@ -66,6 +67,16 @@ function Editor({ post }: { post?: Post }) {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [dirty]);
+  useEffect(() => {
+    if (action.code !== 'POST_400_0003') return;
+    const frame = window.requestAnimationFrame(() => {
+      setTab('write');
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [action.code]);
+  useEffect(() => {
+    if (action.code === 'POST_400_0003' && tab === 'write') bodyInput.current?.focus();
+  }, [action.code, tab]);
   const handleAppend = (value: string) =>
     setContents((current) => `${current}${current ? '\n' : ''}${value}`);
   return (
@@ -94,6 +105,10 @@ function Editor({ post }: { post?: Post }) {
           else if (title.length > 100) next.title = '제목은 100자까지 입력해 주세요';
           if (!contents.trim()) next.contents = '본문을 입력해 주세요';
           setErrors(next);
+          if (next.contents) {
+            setTab('write');
+            window.requestAnimationFrame(() => bodyInput.current?.focus());
+          }
           if (Object.keys(next).length) return;
           void action.run(async () => {
             let id = post?.id;
@@ -223,6 +238,7 @@ function Editor({ post }: { post?: Post }) {
             <div className="field">
               <label htmlFor="post-contents">본문</label>
               <textarea
+                ref={bodyInput}
                 id="post-contents"
                 value={contents}
                 rows={16}

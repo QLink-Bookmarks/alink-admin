@@ -61,6 +61,9 @@ test('models validate immutable identity, duplicate names, positive limits and p
   const add = page.getByRole('button', { name: '모델 추가', exact: true });
   await add.click();
   const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText(
+    '작은 숫자가 먼저 표시돼요. 같은 우선순위는 모델 번호가 작은 순서예요.',
+  );
   const name = dialog.getByLabel('모델 식별자', { exact: true });
   await expect(name).toBeFocused();
   await page.keyboard.press('Shift+Tab');

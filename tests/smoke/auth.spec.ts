@@ -103,6 +103,15 @@ test('wide/mobile navigation, both themes and layout boundary have no horizontal
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
+    if ((page.viewportSize()?.width ?? 1280) <= 768 && path === '/announcements') {
+      const table = page.getByRole('table', { name: '공지사항 목록' });
+      const geometry = await table.locator('caption').evaluate((caption) => ({
+        width: caption.getBoundingClientRect().width,
+        tableWidth: caption.closest('table')!.getBoundingClientRect().width,
+      }));
+      expect(geometry.width).toBeGreaterThan(300);
+      expect(Math.abs(geometry.width - geometry.tableWidth)).toBeLessThanOrEqual(1);
+    }
   }
   const mobile = (page.viewportSize()?.width ?? 1280) <= 768;
   await expect(page.locator('.account-mobile')).toBeVisible({ visible: mobile });

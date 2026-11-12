@@ -159,8 +159,15 @@ h1 {
   color: hsl(var(--destructive-text));
 }
 dialog {
-  max-width: min(480px, calc(100vw - 32px));
-  max-height: calc(100svh - 48px);
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(
+    480px,
+    calc(100vw - max(32px, env(safe-area-inset-left) + env(safe-area-inset-right)))
+  );
+  max-width: calc(100vw - max(32px, env(safe-area-inset-left) + env(safe-area-inset-right)));
+  max-height: calc(100svh - max(48px, env(safe-area-inset-top) + env(safe-area-inset-bottom)));
   overflow: auto;
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius);
@@ -272,6 +279,9 @@ p {
   gap: 20px;
 }
 .header-inner .brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
   text-decoration: none;
   white-space: nowrap;
 }
@@ -356,6 +366,9 @@ p {
   margin: 0;
 }
 .provider-head h2 a {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
   text-decoration: none;
 }
 .provider-head .row {
@@ -738,6 +751,10 @@ dialog > p {
   .list-card table,
   .list-card tbody {
     display: block;
+  }
+  .list-card caption {
+    display: block;
+    width: 100%;
   }
   .list-card thead {
     position: absolute;

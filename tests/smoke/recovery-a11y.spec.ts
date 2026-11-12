@@ -99,7 +99,11 @@ test('dialog focus stays trapped, visible controls meet target size and field co
     };
     const input = document.querySelector<HTMLInputElement>('input')!;
     const style = getComputedStyle(input);
-    const small = [...document.querySelectorAll<HTMLElement>('button, summary, nav a')]
+    const small = [
+      ...document.querySelectorAll<HTMLElement>(
+        'button, summary, nav a, .header-inner .brand, .provider-head h2 a',
+      ),
+    ]
       .filter((element) => element.checkVisibility())
       .filter((element) => {
         const box = element.getBoundingClientRect();
@@ -117,4 +121,36 @@ test('dialog focus stays trapped, visible controls meet target size and field co
   expect(audit.border).toBeGreaterThanOrEqual(3);
   expect(audit.placeholder).toBeGreaterThanOrEqual(4.5);
   expect(audit.outline).not.toBe('none');
+});
+
+test('dialogs stay centered with symmetric margins and scroll in a short viewport', async ({
+  page,
+}) => {
+  await installFixture(page);
+  await page.setViewportSize({ width: 390, height: 320 });
+  await page.goto('/providers/1');
+  await page.getByRole('button', { name: '모델 추가', exact: true }).click();
+  const geometry = await page.getByRole('dialog').evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return {
+      left: box.left,
+      right: innerWidth - box.right,
+      top: box.top,
+      bottom: innerHeight - box.bottom,
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      overflowY: style.overflowY,
+      maxHeight: Number.parseFloat(style.maxHeight),
+    };
+  });
+  expect(geometry.left).toBeGreaterThanOrEqual(16);
+  expect(geometry.right).toBeGreaterThanOrEqual(16);
+  expect(Math.abs(geometry.left - geometry.right)).toBeLessThanOrEqual(1);
+  expect(geometry.top).toBeGreaterThanOrEqual(24);
+  expect(geometry.bottom).toBeGreaterThanOrEqual(24);
+  expect(Math.abs(geometry.top - geometry.bottom)).toBeLessThanOrEqual(1);
+  expect(geometry.overflowY).toBe('auto');
+  expect(geometry.maxHeight).toBeLessThanOrEqual(272);
+  expect(geometry.scrollHeight).toBeGreaterThan(geometry.clientHeight);
 });

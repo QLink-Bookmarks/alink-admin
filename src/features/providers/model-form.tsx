@@ -78,6 +78,7 @@ export function ModelForm({
         label="우선순위"
         inputMode="numeric"
         value={priority}
+        description="작은 숫자가 먼저 표시돼요. 같은 우선순위는 모델 번호가 작은 순서예요."
         readOnly={action.pending}
         error={
           errors.priority ??
