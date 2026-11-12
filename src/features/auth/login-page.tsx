@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { env } from '../../lib/env';
 import { ApiError } from '../../lib/api-error';
 import { Button } from '../../components/ui/button';
+import { usePageTitle } from '../../lib/use-page-title';
 import { useSession } from './queries';
 import { session } from './session';
 
@@ -25,6 +26,7 @@ export function LoginPage() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
+  usePageTitle('로그인');
   useEffect(() => {
     if (!env.googleClientId || pending) return;
     let active = true;

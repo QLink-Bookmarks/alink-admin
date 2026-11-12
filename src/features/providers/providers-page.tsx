@@ -3,12 +3,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
-import { Dialog } from '../../components/ui/dialog';
+import { ConfirmDialog, Dialog } from '../../components/ui/dialog';
 import { Table } from '../../components/ui/table';
 import { TextField } from '../../components/ui/text-field';
 import { RequestState, SaveStatus } from '../../components/ui/request-state';
 import { formatDate } from '../../lib/format';
-import { useSaveAction } from '../../lib/use-save-action';
+import { clearServerError, useSaveAction } from '../../lib/use-save-action';
+import { focusFirstInvalid } from '../../lib/focus';
+import { usePageTitle } from '../../lib/use-page-title';
 import {
   createProvider,
   providerTypes,
@@ -29,6 +31,7 @@ export function ProvidersPage() {
   const query = useProviders();
   const navigate = useNavigate();
   const [adding, setAdding] = useState(false);
+  usePageTitle('제공자 및 모델');
   const available = providerTypes.filter(
     (type) => !query.data?.some((provider) => provider.type === type),
   );
@@ -116,16 +119,21 @@ function ProviderCreate({
 }) {
   const [type, setType] = useState(available[0]!);
   const [url, setUrl] = useState(`https://${officialHosts[type]}`);
-  const [invalid, setInvalid] = useState(false);
+  const [checked, setChecked] = useState(false);
   const action = useSaveAction();
+  const form = useRef<HTMLFormElement>(null);
   return (
     <form
+      ref={form}
       noValidate
       aria-busy={action.pending}
       onSubmit={(event) => {
         event.preventDefault();
-        setInvalid(!validBaseUrl(type, url));
-        if (!validBaseUrl(type, url)) return;
+        setChecked(true);
+        if (!validBaseUrl(type, url)) {
+          focusFirstInvalid(form.current);
+          return;
+        }
         void action.run(async () => {
           const result = await createProvider(type, url);
           await onSaved(result.id);
@@ -155,11 +163,14 @@ function ProviderCreate({
         value={url}
         readOnly={action.pending}
         error={
-          invalid || action.code === 'AI_400_0004'
+          (checked && !validBaseUrl(type, url)) || action.code === 'AI_400_0004'
             ? '업체의 공식 API 주소만 쓸 수 있어요'
             : undefined
         }
-        onChange={(event) => setUrl(event.target.value)}
+        onChange={(event) => {
+          setUrl(event.target.value);
+          clearServerError(action, ['AI_400_0004']);
+        }}
       />
       <p className="note">새 제공자는 비활성으로 추가돼요</p>
       <SaveStatus {...action} />
@@ -181,19 +192,30 @@ function ProviderPanel({ id }: { id: string }) {
   const provider = query.data;
   const [draftUrl, setUrl] = useState<string | null>(null);
   const url = draftUrl ?? provider?.baseUrl ?? '';
-  const [invalid, setInvalid] = useState(false);
+  const [checked, setChecked] = useState(false);
   const [editing, setEditing] = useState<Model | 'new' | null>(null);
   const [confirm, setConfirm] = useState<Model | 'provider' | null>(null);
   const action = useSaveAction(refresh);
+  const stateAction = useSaveAction(refresh);
+  const form = useRef<HTMLFormElement>(null);
+  const showNotice = (message: string) => {
+    action.setError('');
+    action.setNotice(message);
+  };
   const handleSaved = async () => {
     await refresh();
     setEditing(null);
-    action.setNotice('저장했어요');
+    showNotice('저장했어요');
+  };
+  const openConfirm = (target: Model | 'provider') => {
+    stateAction.setError('');
+    setConfirm(target);
   };
   const models = [...(provider?.models ?? [])].sort(
     (a, b) => a.priority - b.priority || a.id - b.id,
   );
   const active = confirm === 'provider' ? provider?.isActive : confirm?.isActive;
+  const verb = active ? '비활성화' : '활성화';
   return (
     <div className="provider-body">
       <RequestState
@@ -210,12 +232,16 @@ function ProviderPanel({ id }: { id: string }) {
             </p>
           )}
           <form
+            ref={form}
             noValidate
             aria-busy={action.pending}
             onSubmit={(event) => {
               event.preventDefault();
-              setInvalid(!validBaseUrl(provider.type, url));
-              if (!validBaseUrl(provider.type, url)) return;
+              setChecked(true);
+              if (!validBaseUrl(provider.type, url)) {
+                focusFirstInvalid(form.current);
+                return;
+              }
               void action.run(async () => {
                 await updateProvider(provider.id, url);
                 await refresh();
@@ -229,12 +255,15 @@ function ProviderPanel({ id }: { id: string }) {
                 value={url}
                 description={`공식 호스트: ${officialHosts[provider.type]}`}
                 error={
-                  invalid || action.code === 'AI_400_0004'
+                  (checked && !validBaseUrl(provider.type, url)) || action.code === 'AI_400_0004'
                     ? '업체의 공식 API 주소만 쓸 수 있어요'
                     : undefined
                 }
                 readOnly={action.pending}
-                onChange={(event) => setUrl(event.target.value)}
+                onChange={(event) => {
+                  setUrl(event.target.value);
+                  clearServerError(action, ['AI_400_0004']);
+                }}
               />
               <Button type="submit" aria-disabled={action.pending}>
                 {action.pending ? '저장 중…' : '주소 저장'}
@@ -247,7 +276,7 @@ function ProviderPanel({ id }: { id: string }) {
               aria-describedby={!provider.isExecutable ? 'adapter-reason' : undefined}
               onClick={() => {
                 if (!provider.isActive && !provider.isExecutable) return;
-                setConfirm('provider');
+                openConfirm('provider');
               }}
             >
               {provider.isActive ? '제공자 비활성화' : '제공자 활성화'}
@@ -305,7 +334,7 @@ function ProviderPanel({ id }: { id: string }) {
                           <ModelActions
                             model={model}
                             onEdit={() => setEditing(model)}
-                            onState={() => setConfirm(model)}
+                            onState={() => openConfirm(model)}
                           />
                         </td>
                       </tr>
@@ -333,7 +362,7 @@ function ProviderPanel({ id }: { id: string }) {
                     <ModelActions
                       model={model}
                       onEdit={() => setEditing(model)}
-                      onState={() => setConfirm(model)}
+                      onState={() => openConfirm(model)}
                     />
                   </article>
                 ))}
@@ -354,37 +383,36 @@ function ProviderPanel({ id }: { id: string }) {
               />
             )}
           </Dialog>
-          <Dialog
+          <ConfirmDialog
             open={confirm !== null}
-            title={`${confirm === 'provider' ? '제공자' : '모델'} ${active ? '비활성화' : '활성화'}`}
-            initialFocus="cancel"
-            onClose={() => {
-              if (!action.pending) setConfirm(null);
+            title={`${confirm === 'provider' ? '제공자를' : '모델을'} ${verb}할까요?`}
+            description={
+              <>
+                <p>
+                  {confirm === 'provider'
+                    ? `${provider.type} 제공자의 활성 모델 ${models.filter((model) => model.isActive).length}개가 ${active ? '사용자에게 숨겨져요' : '다시 표시돼요'}`
+                    : `${provider.type} 제공자의 ${confirm?.model ?? ''} 모델이 ${active ? '사용자 선택·실행에서 제외돼요' : '다시 선택·실행할 수 있게 돼요'}`}
+                </p>
+                <p>기존 연결과 이력은 보존돼요</p>
+              </>
+            }
+            actionLabel={verb}
+            pendingLabel="저장 중…"
+            pending={stateAction.pending}
+            error={stateAction.error}
+            onClose={() => setConfirm(null)}
+            onConfirm={() => {
+              if (!confirm) return;
+              void stateAction.run(async () => {
+                if (confirm === 'provider')
+                  await setProviderActive(provider.id, !provider.isActive);
+                else await setModelActive(confirm.id, !confirm.isActive);
+                await refresh();
+                setConfirm(null);
+                showNotice(`${verb}했어요`);
+              });
             }}
-          >
-            <p>
-              {confirm === 'provider'
-                ? `활성 모델 ${models.filter((model) => model.isActive).length}개가 ${active ? '사용자에게 숨겨져요' : '다시 표시돼요'}`
-                : `이 모델을 ${active ? '사용자 선택·실행에서 제외할까요' : '다시 활성화할까요'}?`}
-            </p>
-            <p>기존 연결과 이력은 보존돼요</p>
-            <SaveStatus {...action} />
-            <Button
-              aria-disabled={action.pending}
-              onClick={() => {
-                if (!confirm) return;
-                void action.run(async () => {
-                  if (confirm === 'provider')
-                    await setProviderActive(provider.id, !provider.isActive);
-                  else await setModelActive(confirm.id, !confirm.isActive);
-                  await refresh();
-                  setConfirm(null);
-                });
-              }}
-            >
-              {action.pending ? '저장 중…' : '확인'}
-            </Button>
-          </Dialog>
+          />
         </>
       )}
     </div>

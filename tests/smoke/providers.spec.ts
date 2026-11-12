@@ -18,10 +18,15 @@ test('provider URL validation, normalization, state confirmations and missing ad
     await page.getByRole('button', { name: '주소 저장' }).click();
     await expect(page.getByText('업체의 공식 API 주소만 쓸 수 있어요')).toBeVisible();
     await expect(url).toHaveValue(value);
+    await expect(url).toBeFocused();
   }
+  await url.fill('https://generativelanguage.googleapis.com');
+  await expect(page.getByText('업체의 공식 API 주소만 쓸 수 있어요')).toHaveCount(0);
+  await expect(url).not.toHaveAttribute('aria-invalid', 'true');
   await url.fill('https://generativelanguage.googleapis.com/v1beta/');
   await page.getByRole('button', { name: '주소 저장' }).click();
   await expect(url).toHaveValue('https://generativelanguage.googleapis.com/v1beta');
+  await expect(page.getByRole('status').filter({ hasText: '저장했어요' })).toBeVisible();
   expect(
     state.requests.find(
       (request) => request.method === 'PUT' && request.path === '/api/ai/providers/1',
@@ -29,19 +34,36 @@ test('provider URL validation, normalization, state confirmations and missing ad
   ).toEqual({ baseUrl: 'https://generativelanguage.googleapis.com/v1beta/' });
   const trigger = page.getByRole('button', { name: '제공자 비활성화', exact: true });
   await trigger.click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toContainText('활성 모델 3개');
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toContainText('GEMINI 제공자의 활성 모델 3개');
+  await expect(dialog).not.toContainText('저장했어요');
+  const description = await dialog.evaluate(
+    (element) =>
+      document.getElementById(element.getAttribute('aria-describedby') ?? '')?.textContent,
+  );
+  expect(description).toContain('활성 모델 3개');
+  const actions = await dialog.locator('.dialog-actions button').allTextContents();
+  expect(actions).toEqual(['취소', '비활성화']);
+  const [cancelBox, verbBox] = await Promise.all([
+    dialog.getByRole('button', { name: '취소' }).boundingBox(),
+    dialog.getByRole('button', { name: '비활성화', exact: true }).boundingBox(),
+  ]);
+  expect(cancelBox!.x).toBeLessThan(verbBox!.x);
+  expect(Math.abs(cancelBox!.y - verbBox!.y)).toBeLessThanOrEqual(1);
   await expect(dialog.getByRole('button', { name: '취소' })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(trigger).toBeFocused();
   await trigger.click();
-  await dialog.getByRole('button', { name: '확인', exact: true }).click();
+  await dialog.getByRole('button', { name: '비활성화', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: '비활성화했어요' })).toBeVisible();
   await expect(
     page.getByText('이 제공자의 모든 모델은 사용자에게 숨겨져요.', { exact: false }),
   ).toBeVisible();
   expect(state.providers[0]?.isActive).toBe(false);
   await page.getByRole('button', { name: '제공자 활성화', exact: true }).click();
-  await dialog.getByRole('button', { name: '확인', exact: true }).click();
+  await expect(dialog).not.toContainText('비활성화했어요');
+  await dialog.getByRole('button', { name: '활성화', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
   expect(state.providers[0]?.isActive).toBe(true);
   await page.goto('/providers/3');
   const unavailable = page.getByRole('button', { name: '제공자 활성화', exact: true });
@@ -49,7 +71,7 @@ test('provider URL validation, normalization, state confirmations and missing ad
   await unavailable.focus();
   await page.keyboard.press('Enter');
   await page.keyboard.press('Space');
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
   await expect(unavailable).toBeFocused();
 });
 
@@ -72,11 +94,14 @@ test('models validate immutable identity, duplicate names, positive limits and p
     await name.fill(value);
     await dialog.getByRole('button', { name: '추가', exact: true }).click();
     await expect(name).toHaveAttribute('aria-invalid', 'true');
+    await expect(name).toBeFocused();
   }
   await name.fill('gemini-2.5-flash');
   await dialog.getByRole('button', { name: '추가', exact: true }).click();
   await expect(dialog.getByText('이미 등록된 모델이에요').first()).toBeVisible();
   await name.fill('gemini-new');
+  await expect(dialog.getByText('이미 등록된 모델이에요')).toHaveCount(0);
+  await expect(name).not.toHaveAttribute('aria-invalid', 'true');
   for (const value of ['0', '-1', '1.5', 'letters']) {
     await dialog.getByLabel('우선순위', { exact: true }).fill(value);
     await dialog.getByRole('button', { name: '추가', exact: true }).click();
@@ -86,6 +111,10 @@ test('models validate immutable identity, duplicate names, positive limits and p
     );
   }
   await dialog.getByLabel('우선순위', { exact: true }).fill('1');
+  await expect(dialog.getByLabel('우선순위', { exact: true })).not.toHaveAttribute(
+    'aria-invalid',
+    'true',
+  );
   await dialog.getByLabel('일일 요청 제한', { exact: true }).fill('0');
   await dialog.getByRole('button', { name: '추가', exact: true }).click();
   await expect(dialog.getByLabel('일일 요청 제한', { exact: true })).toHaveAttribute(

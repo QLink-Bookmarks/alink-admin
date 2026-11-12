@@ -44,18 +44,19 @@ test('model state idempotency, ordering and immutable fields survive reload', as
     .getByRole('button', { name: '비활성화', exact: true })
     .filter({ visible: true })
     .click();
-  const dialog = page.getByRole('dialog');
+  const dialog = page.getByRole('alertdialog');
   await expect(dialog.getByRole('button', { name: '취소' })).toBeFocused();
+  await expect(dialog).toContainText('GEMINI 제공자의 gemini-2.5-flash 모델');
   state.providers[0]!.models[0]!.isActive = false;
-  await dialog.getByRole('button', { name: '확인', exact: true }).click();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await dialog.getByRole('button', { name: '비활성화', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
   expect(
     state.requests.find((request) => request.path === '/api/ai/models/1/active')?.body,
   ).toEqual({ isActive: false });
   await menu.click();
   await page.getByRole('button', { name: '활성화', exact: true }).filter({ visible: true }).click();
-  await dialog.getByRole('button', { name: '확인', exact: true }).click();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await dialog.getByRole('button', { name: '활성화', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
   await page.reload();
   await expect(page.getByLabel('기본 URL')).toBeVisible();
   const ordered = page.locator(
@@ -153,4 +154,39 @@ test('dialogs stay centered with symmetric margins and scroll in a short viewpor
   expect(geometry.overflowY).toBe('auto');
   expect(geometry.maxHeight).toBeLessThanOrEqual(272);
   expect(geometry.scrollHeight).toBeGreaterThan(geometry.clientHeight);
+});
+
+test('route changes set page titles, focus the page heading and drop one-time notices', async ({
+  page,
+}) => {
+  await installFixture(page);
+  await page.goto('/providers');
+  await expect(page).toHaveTitle('제공자 및 모델 · ALink 관리자');
+  await page.getByRole('link', { name: '공지사항', exact: true }).click();
+  await expect(page).toHaveTitle('공지사항 · ALink 관리자');
+  await expect(page.getByRole('heading', { level: 1, name: '공지사항' })).toBeFocused();
+  await page.getByRole('link', { name: '공지 17', exact: true }).click();
+  await expect(page).toHaveTitle('공지 17 · 공지사항 · ALink 관리자');
+  await expect(page.getByRole('heading', { level: 1, name: '공지 17' })).toBeFocused();
+  await page.getByRole('link', { name: '수정', exact: true }).click();
+  await expect(page).toHaveTitle('공지 수정 · 공지사항 · ALink 관리자');
+  await expect(page.getByRole('heading', { level: 1, name: '공지 수정' })).toBeFocused();
+  await page.getByLabel('제목', { exact: true }).fill('제목 바꾼 공지');
+  await page.getByRole('button', { name: '저장', exact: true }).click();
+  await expect(page).toHaveURL(/\/announcements\/20$/);
+  await expect(page.getByRole('status').filter({ hasText: '저장했어요' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: '제목 바꾼 공지' })).toBeFocused();
+  await page.reload();
+  await expect(page.getByRole('heading', { level: 1, name: '제목 바꾼 공지' })).toBeVisible();
+  await expect(page.getByText('저장했어요')).toHaveCount(0);
+  await page.getByRole('link', { name: '피드백', exact: true }).click();
+  await page.getByRole('link', { name: '피드백 17', exact: true }).click();
+  await expect(page).toHaveTitle('피드백 17 · 피드백 · ALink 관리자');
+  await expect(page.getByRole('heading', { level: 1, name: '피드백 17' })).toBeFocused();
+  await page.getByRole('link', { name: '제공자 및 모델', exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1, name: '제공자 및 모델' })).toBeFocused();
+  const toggle = page.getByRole('link', { name: '상세 보기' }).first();
+  await toggle.click();
+  await expect(page).toHaveURL(/\/providers\/1$/);
+  await expect(page.getByRole('heading', { level: 1, name: '제공자 및 모델' })).not.toBeFocused();
 });

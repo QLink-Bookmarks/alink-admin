@@ -4,6 +4,7 @@ import { PostContent, PostImage } from '../../components/ui/post-content';
 import { RequestState } from '../../components/ui/request-state';
 import { formatDate } from '../../lib/format';
 import { useSearch } from '../../lib/use-search';
+import { usePageTitle } from '../../lib/use-page-title';
 import { isSafeUrl } from '../../lib/post-content';
 import { useFeedback, useFeedbacks } from './queries';
 
@@ -28,6 +29,7 @@ export function FeedbackDetailPage() {
   const { id = '' } = useParams();
   const query = useFeedback(id);
   const post = query.data;
+  usePageTitle(post?.type === 'FEEDBACK' ? post.title : undefined, '피드백');
   return (
     <div className="stack">
       <Link className="back-link" to="/feedbacks">

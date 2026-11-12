@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, NavLink, Navigate, Outlet } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { useSession } from '../features/auth/queries';
 import { session } from '../features/auth/session';
@@ -7,6 +7,34 @@ import { session } from '../features/auth/session';
 export function AdminShell() {
   const state = useSession();
   const [accountOpen, setAccountOpen] = useState(false);
+  const { pathname } = useLocation();
+  const page = pathname.startsWith('/providers') ? '/providers' : pathname;
+  const main = useRef<HTMLElement>(null);
+  const shownPage = useRef(page);
+  useEffect(() => {
+    if (shownPage.current === page) return;
+    shownPage.current = page;
+    const container = main.current;
+    if (!container) return;
+    const focusHeading = () => {
+      const heading = container.querySelector<HTMLElement>('h1');
+      if (!heading) return false;
+      heading.tabIndex = -1;
+      heading.focus();
+      return true;
+    };
+    if (focusHeading()) return;
+    const observer = new MutationObserver(() => {
+      if (focusHeading()) observer.disconnect();
+    });
+    const stop = () => observer.disconnect();
+    observer.observe(container, { childList: true, subtree: true });
+    document.addEventListener('focusin', stop, { once: true });
+    return () => {
+      stop();
+      document.removeEventListener('focusin', stop);
+    };
+  }, [page]);
   if (state.status === 'loading')
     return (
       <main className="login-shell">
@@ -64,7 +92,7 @@ export function AdminShell() {
           </div>
         </div>
       </header>
-      <main className="app-content" id="main-content">
+      <main className="app-content" id="main-content" ref={main}>
         <Outlet />
       </main>
     </>

@@ -1,13 +1,15 @@
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '../../components/ui/button';
-import { Dialog } from '../../components/ui/dialog';
+import { ConfirmDialog } from '../../components/ui/dialog';
 import { PostContent } from '../../components/ui/post-content';
-import { RequestState, SaveStatus } from '../../components/ui/request-state';
+import { RequestState } from '../../components/ui/request-state';
 import { ApiError } from '../../lib/api-error';
 import { formatDate } from '../../lib/format';
 import { useSaveAction } from '../../lib/use-save-action';
+import { usePageTitle } from '../../lib/use-page-title';
+import { useRouteNotice } from '../../lib/use-route-notice';
 import { deleteAnnouncement } from './api';
 import { announcementKeys, useAnnouncement, useRefreshAnnouncements } from './queries';
 
@@ -19,7 +21,8 @@ export function AnnouncementDetailPage() {
   const action = useSaveAction();
   const refresh = useRefreshAnnouncements();
   const navigate = useNavigate();
-  const location = useLocation();
+  const notice = useRouteNotice();
+  usePageTitle(post?.type === 'ANNOUNCEMENT' ? post.title : undefined, '공지사항');
   const client = useQueryClient();
   useEffect(() => {
     if (query.error instanceof ApiError && query.error.status === 404)
@@ -30,7 +33,7 @@ export function AnnouncementDetailPage() {
       <Link className="back-link" to="/announcements">
         ← 공지사항 목록
       </Link>
-      <p role="status">{(location.state as { notice?: string } | null)?.notice}</p>
+      <p role="status">{notice}</p>
       <RequestState
         pending={query.isPending}
         error={query.error}
@@ -52,38 +55,38 @@ export function AnnouncementDetailPage() {
             <p className="muted">공지 번호 {post.id}</p>
             <PostContent contents={post.contents} />
           </article>
-          <Dialog
+          <ConfirmDialog
             open={confirm}
             title="공지를 삭제할까요?"
-            initialFocus="cancel"
-            onClose={() => {
-              if (!action.pending) setConfirm(false);
-            }}
-          >
-            <p>해당 공지의 인앱 알림도 삭제돼요. 이미 기기에 도착한 푸시는 회수되지 않아요.</p>
-            <SaveStatus {...action} />
-            <Button
-              aria-disabled={action.pending}
-              onClick={() =>
-                void action.run(async () => {
-                  let notice = '삭제했어요';
-                  try {
-                    await deleteAnnouncement(post.id);
-                  } catch (cause) {
-                    if (!(cause instanceof ApiError && cause.status === 404)) throw cause;
-                    notice = '이미 삭제됐어요';
-                  }
-                  await refresh();
-                  void navigate('/announcements', {
-                    replace: true,
-                    state: { notice },
-                  });
-                }, '삭제했어요')
-              }
-            >
-              {action.pending ? '삭제 중…' : '삭제 확인'}
-            </Button>
-          </Dialog>
+            description={
+              <>
+                <p>“{post.title}” 공지를 삭제해요</p>
+                <p>해당 공지의 인앱 알림도 삭제돼요. 이미 기기에 도착한 푸시는 회수되지 않아요.</p>
+              </>
+            }
+            actionLabel="삭제"
+            pendingLabel="삭제 중…"
+            pending={action.pending}
+            error={action.error}
+            destructive
+            onClose={() => setConfirm(false)}
+            onConfirm={() =>
+              void action.run(async () => {
+                let notice = '삭제했어요';
+                try {
+                  await deleteAnnouncement(post.id);
+                } catch (cause) {
+                  if (!(cause instanceof ApiError && cause.status === 404)) throw cause;
+                  notice = '이미 삭제됐어요';
+                }
+                await refresh();
+                void navigate('/announcements', {
+                  replace: true,
+                  state: { notice },
+                });
+              }, '삭제했어요')
+            }
+          />
         </>
       )}
     </div>

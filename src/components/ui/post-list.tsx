@@ -1,10 +1,12 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Button } from './button';
 import { TextField } from './text-field';
 import { Table } from './table';
 import { RequestState } from './request-state';
 import { formatDate } from '../../lib/format';
 import { useSearch } from '../../lib/use-search';
+import { usePageTitle } from '../../lib/use-page-title';
+import { useRouteNotice } from '../../lib/use-route-notice';
 import type { PostSummary } from '../../features/announcements/api';
 
 export function PostList({
@@ -29,11 +31,12 @@ export function PostList({
   onMore: () => void;
 }) {
   const title = feedback ? '피드백' : '공지사항';
-  const location = useLocation();
+  const notice = useRouteNotice();
+  usePageTitle(title);
   const path = feedback ? '/feedbacks' : '/announcements';
   return (
     <div className="stack">
-      <p role="status">{(location.state as { notice?: string } | null)?.notice}</p>
+      <p role="status">{notice}</p>
       <div className="page-head">
         <div>
           <h1>{title}</h1>

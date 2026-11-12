@@ -36,5 +36,11 @@ export function useSaveAction(onMissing?: () => Promise<unknown>) {
       setPending(false);
     }
   }
-  return { pending, error, code, notice, run, setError, setNotice };
+  return { pending, error, code, notice, run, setError, setCode, setNotice };
+}
+
+export function clearServerError(action: ReturnType<typeof useSaveAction>, codes: string[]) {
+  if (!codes.includes(action.code)) return;
+  action.setCode('');
+  action.setError('');
 }

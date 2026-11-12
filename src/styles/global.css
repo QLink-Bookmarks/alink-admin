@@ -567,10 +567,21 @@ dd {
   white-space: pre-wrap;
 }
 .post-content .post-link {
-  display: inline-flex;
-  min-height: 40px;
-  align-items: center;
+  display: inline-block;
   align-self: flex-start;
+  min-height: 40px;
+  padding-block: 8px;
+  line-height: 24px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+.post-content .post-link::after {
+  content: '\2197';
+  display: inline-block;
+  margin-left: 4px;
+  text-decoration: none;
 }
 .post-content img,
 .attachments img {
@@ -646,6 +657,25 @@ dialog {
 dialog > [data-cancel] {
   float: right;
   margin-bottom: 16px;
+}
+.dialog-description {
+  margin-bottom: 16px;
+}
+.dialog-description p + p {
+  margin-top: 8px;
+}
+dialog > .dialog-actions {
+  margin-top: 8px;
+}
+dialog > [role='alert'] {
+  margin-bottom: 16px;
+}
+.button.destructive {
+  color: hsl(var(--destructive-text));
+  border-color: hsl(var(--destructive-text));
+}
+main h1[tabindex='-1']:focus {
+  outline: none;
 }
 dialog > form,
 dialog > p {

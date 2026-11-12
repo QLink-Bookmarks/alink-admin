@@ -1,18 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../components/ui/button';
-import { Dialog } from '../../components/ui/dialog';
+import { ConfirmDialog, Dialog } from '../../components/ui/dialog';
 import { TextField } from '../../components/ui/text-field';
 import { PostContent } from '../../components/ui/post-content';
 import { RequestState, SaveStatus } from '../../components/ui/request-state';
 import { ApiError } from '../../lib/api-error';
 import { buildLinkTag, isSafeUrl } from '../../lib/post-content';
-import { useSaveAction } from '../../lib/use-save-action';
+import { clearServerError, useSaveAction } from '../../lib/use-save-action';
+import { focusFirstInvalid } from '../../lib/focus';
+import { usePageTitle } from '../../lib/use-page-title';
 import { createAnnouncement, updateAnnouncement, uploadImage, type Post } from './api';
 import { useAnnouncement, useRefreshAnnouncements } from './queries';
 
 export function AnnouncementEditorPage() {
   const { id } = useParams();
+  usePageTitle(id ? '공지 수정' : '공지 등록', '공지사항');
   return id ? <ExistingEditor id={id} /> : <Editor />;
 }
 function ExistingEditor({ id }: { id: string }) {
@@ -34,19 +37,28 @@ function ExistingEditor({ id }: { id: string }) {
 function Editor({ post }: { post?: Post }) {
   const [title, setTitle] = useState(post?.title ?? '');
   const [contents, setContents] = useState(post?.contents ?? '');
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [checked, setChecked] = useState(false);
   const [tab, setTab] = useState<'write' | 'preview'>('write');
   const [insertion, setInsertion] = useState<'btn' | 'link' | null>(null);
   const [unknown, setUnknown] = useState(false);
   const [checkedList, setCheckedList] = useState(false);
   const action = useSaveAction();
+  const invalid = {
+    title: !title.trim()
+      ? '제목을 입력해 주세요'
+      : title.length > 100
+        ? '제목은 100자까지 입력해 주세요'
+        : undefined,
+    contents: contents.trim() ? undefined : '본문을 입력해 주세요',
+  };
   const titleError =
-    errors.title ??
+    (checked ? invalid.title : undefined) ??
     (['POST_400_0001', 'POST_400_0002'].includes(action.code)
       ? '제목을 1~100자로 입력해 주세요'
       : undefined);
   const contentsError =
-    errors.contents ?? (action.code === 'POST_400_0003' ? '본문을 입력해 주세요' : undefined);
+    (checked ? invalid.contents : undefined) ??
+    (action.code === 'POST_400_0003' ? '본문을 입력해 주세요' : undefined);
   const upload = useSaveAction();
   const refresh = useRefreshAnnouncements();
   const navigate = useNavigate();
@@ -77,8 +89,10 @@ function Editor({ post }: { post?: Post }) {
   useEffect(() => {
     if (action.code === 'POST_400_0003' && tab === 'write') bodyInput.current?.focus();
   }, [action.code, tab]);
-  const handleAppend = (value: string) =>
+  const handleAppend = (value: string) => {
     setContents((current) => `${current}${current ? '\n' : ''}${value}`);
+    clearServerError(action, ['POST_400_0003']);
+  };
   return (
     <div className="stack">
       <div className="page-head">
@@ -100,16 +114,12 @@ function Editor({ post }: { post?: Post }) {
         onSubmit={(event) => {
           event.preventDefault();
           if (unknown || upload.pending) return;
-          const next: Record<string, string> = {};
-          if (!title.trim()) next.title = '제목을 입력해 주세요';
-          else if (title.length > 100) next.title = '제목은 100자까지 입력해 주세요';
-          if (!contents.trim()) next.contents = '본문을 입력해 주세요';
-          setErrors(next);
-          if (next.contents) {
-            setTab('write');
-            window.requestAnimationFrame(() => bodyInput.current?.focus());
+          setChecked(true);
+          if (invalid.title || invalid.contents) {
+            if (invalid.contents) setTab('write');
+            focusFirstInvalid(form.current);
+            return;
           }
-          if (Object.keys(next).length) return;
           void action.run(async () => {
             let id = post?.id;
             try {
@@ -135,7 +145,10 @@ function Editor({ post }: { post?: Post }) {
           description={`${title.length} / 100자`}
           error={titleError}
           readOnly={action.pending}
-          onChange={(event) => setTitle(event.target.value)}
+          onChange={(event) => {
+            setTitle(event.target.value);
+            clearServerError(action, ['POST_400_0001', 'POST_400_0002']);
+          }}
         />
         <div
           className="editor-tabs"
@@ -245,7 +258,10 @@ function Editor({ post }: { post?: Post }) {
                 readOnly={action.pending}
                 aria-invalid={!!contentsError}
                 aria-describedby="contents-help"
-                onChange={(event) => setContents(event.target.value)}
+                onChange={(event) => {
+                  setContents(event.target.value);
+                  clearServerError(action, ['POST_400_0003']);
+                }}
               />
               <p id="contents-help" role={contentsError ? 'alert' : undefined}>
                 {contentsError ?? '줄바꿈과 이미지·버튼·링크 태그를 사용할 수 있어요'}
@@ -326,23 +342,19 @@ function Editor({ post }: { post?: Post }) {
           />
         )}
       </Dialog>
-      <Dialog
+      <ConfirmDialog
         open={blocker.state === 'blocked'}
         title="작성 중인 내용을 두고 나갈까요?"
-        initialFocus="cancel"
+        description={<p>저장하지 않은 내용은 사라져요</p>}
+        actionLabel="나가기"
+        destructive
         onClose={() => {
           if (blocker.state === 'blocked') blocker.reset();
         }}
-      >
-        <p>저장하지 않은 내용은 사라져요</p>
-        <Button
-          onClick={() => {
-            if (blocker.state === 'blocked') blocker.proceed();
-          }}
-        >
-          나가기
-        </Button>
-      </Dialog>
+        onConfirm={() => {
+          if (blocker.state === 'blocked') blocker.proceed();
+        }}
+      />
     </div>
   );
 }
@@ -355,31 +367,32 @@ function LinkInsert({
 }) {
   const [label, setLabel] = useState('');
   const [url, setUrl] = useState('');
-  const [invalid, setInvalid] = useState(false);
+  const [checked, setChecked] = useState(false);
+  const form = useRef<HTMLFormElement>(null);
+  const labelInvalid = !label.trim() || /[\]|]/.test(label);
+  const urlInvalid = !isSafeUrl(url) || /[\]\r\n]/.test(url);
   return (
     <form
+      ref={form}
       noValidate
       onSubmit={(event) => {
         event.preventDefault();
+        setChecked(true);
         const tag = buildLinkTag(kind, label, url);
-        setInvalid(!tag);
         if (tag) onInsert(tag);
+        else focusFirstInvalid(form.current);
       }}
     >
       <TextField
         label="라벨"
         value={label}
-        error={
-          invalid && (!label.trim() || /[\]|]/.test(label))
-            ? '라벨을 입력해 주세요. ]와 |는 쓸 수 없어요'
-            : undefined
-        }
+        error={checked && labelInvalid ? '라벨을 입력해 주세요. ]와 |는 쓸 수 없어요' : undefined}
         onChange={(event) => setLabel(event.target.value)}
       />
       <TextField
         label="주소"
         value={url}
-        error={invalid ? 'http 또는 https 주소를 입력해 주세요' : undefined}
+        error={checked && urlInvalid ? 'http 또는 https 주소를 입력해 주세요' : undefined}
         onChange={(event) => setUrl(event.target.value)}
       />
       <Button type="submit">삽입</Button>

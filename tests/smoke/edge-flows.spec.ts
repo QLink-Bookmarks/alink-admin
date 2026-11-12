@@ -98,7 +98,7 @@ test('upload failure keeps content, a long title truncates only in lists, and br
   await expect(contents).toHaveValue(original);
   await contents.fill('보존할 편집 내용');
   await page.goBack();
-  const dialog = page.getByRole('dialog');
+  const dialog = page.getByRole('alertdialog');
   await expect(dialog).toContainText('작성 중인 내용을 두고 나갈까요');
   await dialog.getByRole('button', { name: '취소' }).click();
   await expect(contents).toHaveValue('보존할 편집 내용');
@@ -122,7 +122,7 @@ test('concurrent deletion removes models from the list and announces missing ann
     state.posts.findIndex((post) => post.id === 20),
     1,
   );
-  await page.getByRole('dialog').getByRole('button', { name: '삭제 확인' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: '삭제', exact: true }).click();
   await expect(page).toHaveURL(/\/announcements$/);
   await expect(page.getByRole('status')).toContainText('이미 삭제됐어요');
 });

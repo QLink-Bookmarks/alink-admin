@@ -41,7 +41,7 @@ test('ordinary body links keep link semantics, text selection and 40px targets a
   feedback.contents = '피드백 본문\n[link:도움말|https://example.com/help]';
 
   const verifyBodyLink = async (container: import('@playwright/test').Locator) => {
-    const link = container.getByRole('link', { name: '도움말', exact: true });
+    const link = container.getByRole('link', { name: '도움말 (새 탭)', exact: true });
     await expect(link).toHaveAttribute('href', 'https://example.com/help');
     const result = await link.evaluate((element) => {
       const selection = window.getSelection();
@@ -54,12 +54,16 @@ test('ordinary body links keep link semantics, text selection and 40px targets a
         height: element.getBoundingClientRect().height,
         selected: selection?.toString(),
         userSelect: getComputedStyle(element).userSelect,
+        decoration: getComputedStyle(element).textDecorationLine,
+        marker: getComputedStyle(element, '::after').content,
       };
     });
     expect(result.tagName).toBe('A');
     expect(result.height).toBeGreaterThanOrEqual(40);
     expect(result.selected).toBe('도움말');
     expect(result.userSelect).not.toBe('none');
+    expect(result.decoration).toBe('underline');
+    expect(result.marker).toBe('"↗"');
   };
 
   await page.goto('/announcements/20');
@@ -84,6 +88,7 @@ test('editor validates, inserts links/images, preserves leave cancellation and c
   await save.click();
   await expect(page.getByLabel('제목', { exact: true })).toHaveAttribute('aria-invalid', 'true');
   await expect(page.getByLabel('본문', { exact: true })).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByLabel('제목', { exact: true })).toBeFocused();
   await page.getByLabel('제목', { exact: true }).fill(' '.repeat(3));
   await save.click();
   await expect(page.getByLabel('제목', { exact: true })).toHaveAttribute('aria-invalid', 'true');
@@ -91,14 +96,23 @@ test('editor validates, inserts links/images, preserves leave cancellation and c
   await save.click();
   await expect(page.getByText('제목은 100자까지 입력해 주세요')).toBeVisible();
   await expect(page.getByText('101 / 100자', { exact: true })).toBeVisible();
-  await page.getByLabel('제목', { exact: true }).fill('새 공지 한글');
   await page.getByLabel('본문', { exact: true }).fill('새 본문\n두 번째 줄');
+  await expect(page.getByLabel('본문', { exact: true })).toHaveAttribute('aria-invalid', 'false');
+  await page.getByLabel('제목', { exact: true }).fill('');
+  await save.click();
+  await expect(page.getByLabel('제목', { exact: true })).toBeFocused();
+  await page.getByLabel('제목', { exact: true }).fill('새 공지 한글');
+  await expect(page.getByLabel('제목', { exact: true })).not.toHaveAttribute(
+    'aria-invalid',
+    'true',
+  );
   await page.getByRole('button', { name: '버튼 삽입', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByLabel('라벨')).toBeFocused();
   await dialog.getByRole('button', { name: '삽입', exact: true }).click();
   await expect(dialog.getByLabel('라벨')).toHaveAttribute('aria-invalid', 'true');
   await dialog.getByLabel('라벨').fill('열기');
+  await expect(dialog.getByLabel('라벨')).not.toHaveAttribute('aria-invalid', 'true');
   await dialog.getByLabel('주소').fill('javascript:evil');
   await dialog.getByRole('button', { name: '삽입', exact: true }).click();
   await expect(dialog.getByLabel('주소')).toHaveAttribute('aria-invalid', 'true');
@@ -120,9 +134,14 @@ test('editor validates, inserts links/images, preserves leave cancellation and c
   );
   state.delay = 0;
   await page.getByRole('link', { name: '피드백', exact: true }).click();
-  await expect(dialog).toContainText('작성 중인 내용을 두고 나갈까요');
-  await expect(dialog.getByRole('button', { name: '취소' })).toBeFocused();
-  await dialog.getByRole('button', { name: '취소' }).click();
+  const leave = page.getByRole('alertdialog');
+  await expect(leave).toContainText('작성 중인 내용을 두고 나갈까요');
+  await expect(leave.getByRole('button', { name: '취소' })).toBeFocused();
+  expect(await leave.locator('.dialog-actions button').allTextContents()).toEqual([
+    '취소',
+    '나가기',
+  ]);
+  await leave.getByRole('button', { name: '취소' }).click();
   await expect(page.getByLabel('제목', { exact: true })).toHaveValue('새 공지 한글');
   if ((page.viewportSize()?.width ?? 1280) <= 768) {
     await page.getByRole('tab', { name: '미리보기' }).click();
@@ -210,14 +229,21 @@ test('edit network retry, immutable DTO, long contents warning, delete cancel an
   );
   expect(Object.keys(update!.body).sort()).toEqual(['contents', 'title']);
   await page.getByRole('button', { name: '삭제', exact: true }).click();
-  const dialog = page.getByRole('dialog');
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toContainText('“수정한 공지” 공지를 삭제해요');
   await expect(dialog).toContainText('인앱 알림도 삭제');
   await expect(dialog).toContainText('푸시는 회수되지 않아요');
   await dialog.getByRole('button', { name: '취소' }).click();
   await expect(page.getByRole('button', { name: '삭제', exact: true })).toBeFocused();
   await page.getByRole('button', { name: '삭제', exact: true }).click();
-  await dialog.getByRole('button', { name: '삭제 확인' }).click();
+  await dialog.getByRole('button', { name: '삭제', exact: true }).click();
   await expect(page).toHaveURL(/\/announcements$/);
+  await expect(page.getByRole('status').filter({ hasText: '삭제했어요' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: '공지사항' })).toBeFocused();
+  await expect(page).toHaveTitle('공지사항 · ALink 관리자');
+  await page.reload();
+  await expect(page.getByRole('link', { name: '공지 16', exact: true })).toBeVisible();
+  await expect(page.getByText('삭제했어요')).toHaveCount(0);
   await page.goto('/announcements/20');
   await expect(page.getByRole('heading', { name: '이미 삭제됐어요' })).toBeVisible();
 });

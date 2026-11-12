@@ -37,6 +37,7 @@ export function PostContent({ contents }: { contents: string }) {
             href={block.url}
             target="_blank"
             rel="noopener noreferrer"
+            aria-label={block.kind === 'link' ? `${block.label} (새 탭)` : undefined}
           >
             {block.label}
           </a>

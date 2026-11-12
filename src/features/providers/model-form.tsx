@@ -1,11 +1,20 @@
-import { useState } from 'react';
+import { useRef, useState, type ChangeEvent } from 'react';
 import { Button } from '../../components/ui/button';
 import { TextField } from '../../components/ui/text-field';
 import { SaveStatus } from '../../components/ui/request-state';
-import { useSaveAction } from '../../lib/use-save-action';
+import { clearServerError, useSaveAction } from '../../lib/use-save-action';
+import { focusFirstInvalid } from '../../lib/focus';
 import { createModel, updateModel, type Model, type ProviderDetail } from './api';
 import { positiveInteger, validModelName } from './validation';
 import { useRefreshProviders } from './queries';
+
+type Field = 'name' | 'priority' | 'rpd' | 'tpd';
+const serverCodes: Record<Field, string[]> = {
+  name: ['AI_409_0002', 'AI_400_0005', 'AI_400_0006', 'AI_400_0007'],
+  priority: ['AI_400_0008'],
+  rpd: ['AI_400_0009'],
+  tpd: ['AI_400_0009'],
+};
 
 export function ModelForm({
   provider,
@@ -20,23 +29,40 @@ export function ModelForm({
   const [priority, setPriority] = useState(String(model?.priority ?? 1));
   const [rpd, setRpd] = useState(model?.rpdLimit?.toString() ?? '');
   const [tpd, setTpd] = useState(model?.tpdLimit?.toString() ?? '');
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [checked, setChecked] = useState(false);
   const refresh = useRefreshProviders();
   const action = useSaveAction(refresh);
+  const form = useRef<HTMLFormElement>(null);
+  const invalid: Record<Field, string | undefined> = {
+    name:
+      !model && !validModelName(name)
+        ? '모델 식별자는 영문, 숫자, 점, 밑줄, 하이픈으로 1~100자 입력해 주세요'
+        : undefined,
+    priority: positiveInteger(priority) ? undefined : '1 이상의 정수를 입력해 주세요',
+    rpd: rpd && !positiveInteger(rpd) ? '1 이상의 정수를 입력해 주세요' : undefined,
+    tpd: tpd && !positiveInteger(tpd) ? '1 이상의 정수를 입력해 주세요' : undefined,
+  };
+  const errors: Partial<Record<Field, string>> = checked ? invalid : {};
+  const fieldProps = (field: Field, value: string, setValue: (value: string) => void) => ({
+    value,
+    readOnly: action.pending,
+    onChange: (event: ChangeEvent<HTMLInputElement>) => {
+      setValue(event.target.value);
+      clearServerError(action, serverCodes[field]);
+    },
+  });
   return (
     <form
+      ref={form}
       aria-busy={action.pending}
       noValidate
       onSubmit={(event) => {
         event.preventDefault();
-        const next: Record<string, string> = {};
-        if (!model && !validModelName(name))
-          next.name = '모델 식별자는 영문, 숫자, 점, 밑줄, 하이픈으로 1~100자 입력해 주세요';
-        if (!positiveInteger(priority)) next.priority = '1 이상의 정수를 입력해 주세요';
-        if (rpd && !positiveInteger(rpd)) next.rpd = '1 이상의 정수를 입력해 주세요';
-        if (tpd && !positiveInteger(tpd)) next.tpd = '1 이상의 정수를 입력해 주세요';
-        setErrors(next);
-        if (Object.keys(next).length) return;
+        setChecked(true);
+        if (Object.values(invalid).some(Boolean)) {
+          focusFirstInvalid(form.current);
+          return;
+        }
         void action.run(async () => {
           const settings = {
             priority: Number(priority),
@@ -61,8 +87,7 @@ export function ModelForm({
       ) : (
         <TextField
           label="모델 식별자"
-          value={name}
-          readOnly={action.pending}
+          {...fieldProps('name', name, setName)}
           error={
             errors.name ??
             (action.code === 'AI_409_0002'
@@ -71,42 +96,35 @@ export function ModelForm({
                 ? '모델 식별자를 확인해 주세요'
                 : undefined)
           }
-          onChange={(event) => setName(event.target.value)}
         />
       )}
       <TextField
         label="우선순위"
         inputMode="numeric"
-        value={priority}
+        {...fieldProps('priority', priority, setPriority)}
         description="작은 숫자가 먼저 표시돼요. 같은 우선순위는 모델 번호가 작은 순서예요."
-        readOnly={action.pending}
         error={
           errors.priority ??
           (action.code === 'AI_400_0008' ? '1 이상의 정수를 입력해 주세요' : undefined)
         }
-        onChange={(event) => setPriority(event.target.value)}
       />
       <TextField
         label="일일 요청 제한"
         inputMode="numeric"
-        value={rpd}
+        {...fieldProps('rpd', rpd, setRpd)}
         description="비우면 제한 없음"
-        readOnly={action.pending}
         error={
           errors.rpd ?? (action.code === 'AI_400_0009' ? '일일 제한을 확인해 주세요' : undefined)
         }
-        onChange={(event) => setRpd(event.target.value)}
       />
       <TextField
         label="일일 토큰 제한"
         inputMode="numeric"
-        value={tpd}
+        {...fieldProps('tpd', tpd, setTpd)}
         description="비우면 제한 없음"
-        readOnly={action.pending}
         error={
           errors.tpd ?? (action.code === 'AI_400_0009' ? '일일 제한을 확인해 주세요' : undefined)
         }
-        onChange={(event) => setTpd(event.target.value)}
       />
       <SaveStatus {...action} />
       <div className="actions">
