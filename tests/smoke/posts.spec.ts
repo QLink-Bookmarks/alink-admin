@@ -33,6 +33,48 @@ test('announcements paginate, search Korean input, clear empty results, and show
   await expect(search).toHaveValue('공지 17');
 });
 
+test('ordinary body links keep link semantics, text selection and 40px targets across post views', async ({
+  page,
+}) => {
+  const state = await installFixture(page);
+  const feedback = state.posts.find((post) => post.id === 100)!;
+  feedback.contents = '피드백 본문\n[link:도움말|https://example.com/help]';
+
+  const verifyBodyLink = async (container: import('@playwright/test').Locator) => {
+    const link = container.getByRole('link', { name: '도움말', exact: true });
+    await expect(link).toHaveAttribute('href', 'https://example.com/help');
+    const result = await link.evaluate((element) => {
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      return {
+        tagName: element.tagName,
+        height: element.getBoundingClientRect().height,
+        selected: selection?.toString(),
+        userSelect: getComputedStyle(element).userSelect,
+      };
+    });
+    expect(result.tagName).toBe('A');
+    expect(result.height).toBeGreaterThanOrEqual(40);
+    expect(result.selected).toBe('도움말');
+    expect(result.userSelect).not.toBe('none');
+  };
+
+  await page.goto('/announcements/20');
+  await verifyBodyLink(page.locator('.post-content'));
+
+  await page.goto('/announcements/20/edit');
+  if ((page.viewportSize()?.width ?? 1280) <= 768) {
+    await page.getByRole('tab', { name: '미리보기' }).click();
+  }
+  await verifyBodyLink(page.getByRole('tabpanel', { name: '미리보기' }));
+
+  await page.goto('/feedbacks/100');
+  await verifyBodyLink(page.locator('.post-content'));
+});
+
 test('editor validates, inserts links/images, preserves leave cancellation and creates exactly once', async ({
   page,
 }) => {

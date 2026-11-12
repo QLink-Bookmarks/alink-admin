@@ -33,7 +33,7 @@ export function PostContent({ contents }: { contents: string }) {
         ) : (
           <a
             key={index}
-            className={block.kind === 'button' ? 'button post-button' : undefined}
+            className={block.kind === 'button' ? 'button post-button' : 'post-link'}
             href={block.url}
             target="_blank"
             rel="noopener noreferrer"

@@ -566,6 +566,12 @@ dd {
 .post-content p {
   white-space: pre-wrap;
 }
+.post-content .post-link {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  align-self: flex-start;
+}
 .post-content img,
 .attachments img {
   display: block;
