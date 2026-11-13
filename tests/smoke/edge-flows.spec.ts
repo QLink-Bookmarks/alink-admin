@@ -3,7 +3,7 @@ import { installFixture } from '../fixtures/setup';
 
 test('no Google callback leaves login usable, repeated callbacks submit once', async ({ page }) => {
   const state = await installFixture(page);
-  state.authenticated = false;
+  state.sessions.dev = false;
   await page.goto('/login');
   const button = page.getByRole('button', { name: 'Google로 로그인' });
   await expect(button).toBeVisible();
