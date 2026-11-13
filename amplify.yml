@@ -3,6 +3,7 @@ frontend:
   phases:
     preBuild:
       commands:
+        - if command -v dnf >/dev/null 2>&1; then dnf install -y libatomic; else yum install -y libatomic; fi
         - nvm install 26
         - nvm use 26
         - curl -fsSL https://bun.sh/install | bash -s "bun-v1.4.4"
