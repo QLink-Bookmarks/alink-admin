@@ -29,9 +29,17 @@ export function LoginPage() {
   const pending = state.pending === true;
   const locked = pending || state.status === 'loading';
   const notice = state.status === 'guest' ? state.notice : undefined;
+  const noticeSlot = useRef<HTMLDivElement>(null);
   usePageTitle('로그인');
   useEffect(() => {
-    if (!clientId || pending) return;
+    if (!notice || notice === 'expired') return;
+    const slot = noticeSlot.current;
+    (
+      slot?.querySelector<HTMLElement>('button') ?? slot?.querySelector<HTMLElement>('[tabindex]')
+    )?.focus();
+  }, [notice]);
+  useEffect(() => {
+    if (!clientId) return;
     let active = true;
     const element = target.current;
     const render = () => {
@@ -62,7 +70,7 @@ export function LoginPage() {
       script.remove();
       element?.replaceChildren();
     };
-  }, [clientId, pending, attempt]);
+  }, [clientId, attempt]);
   const handleBlocked = (event: SyntheticEvent) => {
     if (locked) event.preventDefault();
   };
@@ -101,17 +109,23 @@ export function LoginPage() {
             ))}
           </div>
         </fieldset>
-        {pending ? (
+        {pending && (
           <p className="login-pending" role="status">
             {authCopy.signingIn(state.server)}
           </p>
-        ) : (
-          <div className="gis-button" ref={target} />
         )}
-        <div className="login-notice">
+        <div
+          className="gis-button"
+          data-pending={pending || undefined}
+          inert={pending}
+          ref={target}
+        />
+        <div className="login-notice" ref={noticeSlot}>
           {notice === 'expired' && <p role="status">{authCopy.notices.expired(state.server)}</p>}
           {notice && notice !== 'expired' && (
-            <p role="alert">{authCopy.notices[notice](state.server)}</p>
+            <p role="alert" tabIndex={-1}>
+              {authCopy.notices[notice](state.server)}
+            </p>
           )}
           {notice === 'offline' && (
             <Button onClick={() => void session.retry()}>{authCopy.retry}</Button>

@@ -215,13 +215,14 @@ test('a failed logout names the server and retries it on the same server', async
   const notice = (await page.getByRole('alert').boundingBox())!;
   const button = (await page.locator('.gis-button').boundingBox())!;
   expect(notice.y).toBeGreaterThan(button.y);
+  await expect(page.getByRole('button', { name: '로그아웃 다시 시도' })).toBeFocused();
   state.fail = '';
   await page.getByRole('button', { name: '로그아웃 다시 시도' }).click();
   await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect.poll(() => state.sessions.prod).toBe(false);
   expect(
     state.requests.filter((request) => request.path.endsWith('/signout')).map((r) => r.server),
-  ).toEqual(['prod', 'prod']);
-  expect(state.sessions.prod).toBe(false);
+  ).toEqual(['prod', 'prod', 'prod']);
 });
 
 test('another tab switching to 운영 leaves this tab on 개발 until its session ends', async ({
@@ -281,10 +282,18 @@ test('a revoked 운영 role removes content and names the server on the denied s
   );
   await expect(page.getByRole('alert')).toHaveCount(1);
   await expect(page.getByRole('link', { name: 'GEMINI' })).toHaveCount(0);
-  state.deny = false;
+  await expect(page).toHaveTitle('접근 권한이 없어요 · ALink 관리자');
+  await expect
+    .poll(() => state.requests.filter((request) => request.path.endsWith('/signout')).length)
+    .toBe(1);
+  const before = state.requests.length;
   await page.getByRole('button', { name: '다시 로그인' }).click();
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByRole('radio', { name: '운영' })).toBeChecked();
+  await expect(page.getByRole('button', { name: 'Google로 로그인' })).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(page.locator('.login-notice')).toBeEmpty();
+  expect(state.requests.slice(before)).toEqual([]);
 });
 
 test('login and header have no overflow, long nicknames truncate and stay inside safe areas', async ({
@@ -340,4 +349,27 @@ test('login and header have no overflow, long nicknames truncate and stay inside
     expect(mark!.x + mark!.width).toBeLessThanOrEqual(account!.x);
     expect(account!.x + account!.width).toBeLessThanOrEqual(width);
   }
+});
+
+test('the mobile account menu closes with Escape or an outside press and names its panel', async ({
+  page,
+}) => {
+  test.skip(!mobile(page));
+  await guest(page);
+  await signIn(page, 'prod');
+  const account = page.getByRole('button', { name: '계정', exact: true });
+  await account.click();
+  const menu = page.locator('.account-pop');
+  await expect(menu).toBeVisible();
+  await expect(account).toHaveAttribute('aria-controls', (await menu.getAttribute('id'))!);
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+  await expect(account).toBeFocused();
+  await expect(account).toHaveAttribute('aria-expanded', 'false');
+  await account.click();
+  await expect(menu).toBeVisible();
+  await menu.locator('strong').click();
+  await expect(menu).toBeVisible();
+  await page.locator('main h1').click();
+  await expect(menu).toHaveCount(0);
 });

@@ -447,8 +447,21 @@ p {
 .login-card .login-notice [role] {
   margin: 0;
 }
+.login-notice [tabindex='-1']:focus {
+  outline: none;
+}
+.gis-button[data-pending] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
 .denied-card p[role='alert'] {
   margin: 0 0 20px;
+  word-break: keep-all;
+  text-wrap: balance;
 }
 .server-badge {
   display: inline-flex;

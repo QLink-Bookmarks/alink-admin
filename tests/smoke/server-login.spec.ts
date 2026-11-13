@@ -392,3 +392,30 @@ test('the focus ring sits outside the tile', async ({ page }) => {
     });
   expect(ring).toEqual({ style: 'solid', width: '2px', offset: '2px' });
 });
+
+test('focus moves to the result of a sign-in attempt or retry instead of the page body', async ({
+  page,
+}) => {
+  const state = await guest(page);
+  await page.goto('/login');
+  await radio(page, '운영').click();
+  state.signForbidden = true;
+  state.delay = 300;
+  await googleButton(page).click();
+  await expect(page.getByRole('status')).toHaveText('운영 서버에 로그인 중이에요…');
+  const slot = page.locator('.gis-button');
+  await expect(slot).toHaveAttribute('data-pending', 'true');
+  expect(await slot.evaluate((element) => element.hasAttribute('inert'))).toBe(true);
+  expect((await slot.boundingBox())!.width).toBeLessThanOrEqual(1);
+  await expect(page.getByRole('alert')).toBeFocused();
+  await expect(googleButton(page)).toBeVisible();
+  state.signForbidden = false;
+  state.offline = ['prod'];
+  await googleButton(page).click();
+  const retry = page.getByRole('button', { name: '다시 시도' });
+  await expect(retry).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('alert')).toHaveText('운영 서버에 연결하지 못했어요');
+  await expect(retry).toBeFocused();
+  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
+});

@@ -336,13 +336,18 @@ describe('server selection in the session', () => {
 
   it('keeps the denied screen on the session server', async () => {
     storage('prod');
-    serve((path) => (path === '/api/ai/providers' ? failure(403, 'AI_403_0002') : admin(path)));
+    const fetcher = serve((path) =>
+      path === '/api/ai/providers' ? failure(403, 'AI_403_0002') : admin(path),
+    );
     const { session } = await import('./session');
     await session.bootstrap();
     await expect(session.request('/api/ai/providers')).rejects.toThrow();
     expect(session.getSnapshot()).toEqual({ status: 'denied', server: 'prod' });
-    await session.logout();
+    await vi.waitFor(() => expect(calls(fetcher)).toContain('prod /api/auth/admin/signout'));
+    const sent = fetcher.mock.calls.length;
+    session.leaveDenied();
     expect(session.getSnapshot()).toEqual({ status: 'guest', server: 'prod' });
+    expect(fetcher.mock.calls.length).toBe(sent);
   });
 
   it('reports a failed logout for the current server and retries it there', async () => {

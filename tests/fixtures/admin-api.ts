@@ -127,6 +127,8 @@ export async function handleFixture(
       ? { status: 0, abort: true }
       : fail(state.failStatus, state.failCode);
   if (path.endsWith('/signout')) {
+    if (headers.authorization !== `Bearer fixture-access-${server}`)
+      return fail(401, 'AUTH_401_0001');
     state.sessions[server] = false;
     return ok();
   }

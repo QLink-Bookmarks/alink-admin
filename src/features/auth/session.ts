@@ -184,6 +184,9 @@ export const session = {
     retryTask = undefined;
     publish({ status: 'guest' });
   },
+  leaveDenied() {
+    if (snapshot.status === 'denied') publish({ status: 'guest' });
+  },
   login(credential: string) {
     return attempt(() => signInWith(credential));
   },

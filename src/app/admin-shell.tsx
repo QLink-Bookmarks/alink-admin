@@ -13,6 +13,7 @@ export function AdminShell() {
   const page = pathname.startsWith('/providers') ? '/providers' : pathname;
   const main = useRef<HTMLElement>(null);
   const shownPage = useRef(page);
+  const account = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (shownPage.current === page) return;
     shownPage.current = page;
@@ -37,6 +38,23 @@ export function AdminShell() {
       document.removeEventListener('focusin', stop);
     };
   }, [page]);
+  useEffect(() => {
+    if (!accountOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setAccountOpen(false);
+      account.current?.querySelector<HTMLElement>('[aria-controls="account-menu"]')?.focus();
+    };
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!account.current?.contains(event.target as Node)) setAccountOpen(false);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [accountOpen]);
   if (state.status === 'loading')
     return (
       <main className="login-shell">
@@ -72,13 +90,17 @@ export function AdminShell() {
             <span className="badge">{state.profile?.role}</span>
             <Button onClick={() => void session.logout()}>로그아웃</Button>
           </div>
-          <div className="account-mobile">
+          <div className="account-mobile" ref={account}>
             <ServerBadge server={state.server} />
-            <Button aria-expanded={accountOpen} onClick={() => setAccountOpen(!accountOpen)}>
+            <Button
+              aria-expanded={accountOpen}
+              aria-controls="account-menu"
+              onClick={() => setAccountOpen(!accountOpen)}
+            >
               계정
             </Button>
             {accountOpen && (
-              <div className="account-pop card">
+              <div className="account-pop card" id="account-menu">
                 <strong>{state.profile?.nickname}</strong>
                 <p>{state.profile?.role}</p>
                 <Button onClick={() => void session.logout()}>로그아웃</Button>
