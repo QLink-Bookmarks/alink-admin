@@ -1,5 +1,8 @@
 export class ApiError extends Error {
-  constructor(public readonly status: number) {
+  constructor(
+    public readonly status: number,
+    public readonly code = '',
+  ) {
     super(
       status === 401
         ? '세션이 만료됐어요'
