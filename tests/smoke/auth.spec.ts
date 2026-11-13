@@ -18,7 +18,7 @@ test('GIS credential login, permission rejection, network retry and duplicate pr
   state.failStatus = 401;
   await page.getByRole('button', { name: 'Google로 로그인' }).click();
   await expect(page.getByRole('alert')).toHaveText(
-    '개발 서버에 로그인하지 못했어요. 다시 시도해 주세요',
+    '개발 서버에 로그인하지 못했어요. Google 로그인을 다시 눌러 주세요',
   );
   state.fail = '';
   state.delay = 350;

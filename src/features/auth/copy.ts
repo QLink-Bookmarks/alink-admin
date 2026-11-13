@@ -10,7 +10,8 @@ export const authCopy = {
   notices: {
     expired: (server) => `${name(server)} 서버 세션이 만료됐어요`,
     forbidden: (server) => `${name(server)} 서버의 관리자 계정이 아니에요`,
-    failed: (server) => `${name(server)} 서버에 로그인하지 못했어요. 다시 시도해 주세요`,
+    failed: (server) =>
+      `${name(server)} 서버에 로그인하지 못했어요. Google 로그인을 다시 눌러 주세요`,
     offline: (server) => `${name(server)} 서버에 연결하지 못했어요`,
     'logout-failed': (server) =>
       `${name(server)} 서버 로그아웃 요청을 완료하지 못했어요. 다시 시도해 주세요`,

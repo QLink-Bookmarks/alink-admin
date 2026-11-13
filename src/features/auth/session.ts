@@ -72,8 +72,8 @@ function refresh(timeout?: number) {
       .catch((error: unknown) => {
         if (generation === current) {
           const denied = error instanceof ApiError && deniedCodes.has(error.code);
-          if (!restoring) endSession(denied, 'expired');
-          else if (isOffline(error)) endSession(denied, 'offline', retryRestore);
+          if (isOffline(error)) endSession(denied, 'offline', retryRestore);
+          else if (!restoring) endSession(denied, 'expired');
           else endSession(denied);
         }
         throw error;

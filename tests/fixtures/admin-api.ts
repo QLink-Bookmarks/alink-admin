@@ -71,7 +71,7 @@ export function createFixture() {
     posts,
     sessions: { dev: true, prod: true } as Record<ServerId, boolean>,
     role: 'ADMIN',
-    nickname: '운영자',
+    nickname: '김관리',
     deny: false,
     fail: '' as string,
     failStatus: 500,

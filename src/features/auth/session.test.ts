@@ -313,6 +313,27 @@ describe('server selection in the session', () => {
     expect(session.getSnapshot()).toEqual({ status: 'guest', server: 'dev', notice: 'expired' });
   });
 
+  it('shows a connection failure, not an expiry, when a refresh in use cannot reach the server', async () => {
+    storage('prod');
+    let online = true;
+    let refreshes = 0;
+    serve((path) => {
+      if (path.includes('/token/refresh')) refreshes++;
+      if (path.includes('/token/refresh') && refreshes > 1 && !online) return offline();
+      return path === '/api/ai/providers' && refreshes === 1
+        ? failure(401, 'AUTH_401_0001')
+        : admin(path);
+    });
+    const { session } = await import('./session');
+    await session.bootstrap();
+    online = false;
+    await expect(session.request('/api/ai/providers')).rejects.toThrow();
+    expect(session.getSnapshot()).toEqual({ status: 'guest', server: 'prod', notice: 'offline' });
+    online = true;
+    await session.retry();
+    expect(session.getSnapshot()).toMatchObject({ status: 'authenticated', server: 'prod' });
+  });
+
   it('keeps the denied screen on the session server', async () => {
     storage('prod');
     serve((path) => (path === '/api/ai/providers' ? failure(403, 'AI_403_0002') : admin(path)));

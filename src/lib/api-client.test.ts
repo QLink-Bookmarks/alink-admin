@@ -121,6 +121,30 @@ describe('admin transport', () => {
     vi.useRealTimers();
   });
 
+  it('forwards caller cancellation to the request and keeps it a cancellation', async () => {
+    const controller = new AbortController();
+    const cancellation = new DOMException('Request cancelled', 'AbortError');
+    let signal: AbortSignal | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            signal = init.signal ?? undefined;
+            signal?.addEventListener('abort', () => reject(cancellation));
+          }),
+      ),
+    );
+    const result = apiRequest('/api/posts', {
+      server: 'dev',
+      signal: controller.signal,
+      timeout: 15_000,
+    });
+    controller.abort();
+    await expect(result).rejects.toBe(cancellation);
+    expect(signal?.aborted).toBe(true);
+  });
+
   it('rejects traversal before sending an authorization token', async () => {
     const fetcher = vi.fn();
     vi.stubGlobal('fetch', fetcher);

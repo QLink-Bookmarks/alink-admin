@@ -199,7 +199,7 @@ test('rejections name the server, keep the selection and the Google button', asy
   state.failCode = 'AUTH_401_0002';
   await googleButton(page).click();
   await expect(page.getByRole('alert')).toHaveText(
-    '운영 서버에 로그인하지 못했어요. 다시 시도해 주세요',
+    '운영 서버에 로그인하지 못했어요. Google 로그인을 다시 눌러 주세요',
   );
   await expect(page.getByRole('button', { name: '다시 시도' })).toHaveCount(0);
   state.fail = '';

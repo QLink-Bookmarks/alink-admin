@@ -23,17 +23,26 @@ export async function apiRequest<T>(path: ApiPath, options: ApiOptions): Promise
   headers.set('Alink-Requester', 'admin');
   if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
   if (csrfPaths.has(url.pathname)) headers.set('csrf_token', crypto.randomUUID());
-  const timer = new AbortController();
-  const timeoutId = timeout ? setTimeout(() => timer.abort(), timeout) : undefined;
-  const signal = options.signal ? AbortSignal.any([options.signal, timer.signal]) : timer.signal;
+  const controller = new AbortController();
+  const cancel = () => controller.abort(options.signal?.reason);
+  if (options.signal?.aborted) cancel();
+  else options.signal?.addEventListener('abort', cancel, { once: true });
+  const timeoutId = timeout ? setTimeout(() => controller.abort(), timeout) : undefined;
   try {
     return await send<T>(
       `${apiBaseUrl(server)}${path}`,
-      { ...requestOptions, headers, signal, credentials: 'include', redirect: 'error' },
+      {
+        ...requestOptions,
+        headers,
+        signal: controller.signal,
+        credentials: 'include',
+        redirect: 'error',
+      },
       () => options.signal?.aborted === true,
     );
   } finally {
     clearTimeout(timeoutId);
+    options.signal?.removeEventListener('abort', cancel);
   }
 }
 
