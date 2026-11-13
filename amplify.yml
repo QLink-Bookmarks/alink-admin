@@ -3,16 +3,16 @@ frontend:
   phases:
     preBuild:
       commands:
-        - if command -v dnf >/dev/null 2>&1; then dnf install -y libatomic; else yum install -y libatomic; fi
-        - nvm install 26
-        - nvm use 26
+        - nvm ls
+        - nvm install 24
+        - nvm use 24
         - curl -fsSL https://bun.sh/install | bash -s "bun-v1.4.4"
         - export BUN_INSTALL="$HOME/.bun" && export PATH="$BUN_INSTALL/bin:$PATH"
         - node --version && bun --version
         - bun install --frozen-lockfile
     build:
       commands:
-        - nvm use 26
+        - nvm use 24
         - export BUN_INSTALL="$HOME/.bun" && export PATH="$BUN_INSTALL/bin:$PATH"
         - node --version && bun --version
         - bun run build

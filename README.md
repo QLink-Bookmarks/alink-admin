@@ -57,6 +57,6 @@ Amplify 콘솔 설정, 배포 워크플로, 계정·역할 UI, 미지원 업체 
 
 ## PR 검사와 Amplify 빌드
 
-`main`, `feat/**`, `refactor/**`, `fix/**` 대상 PR마다 `.github/workflows/ci.yaml`이 Node 26과 Bun 1.4.4로 `bun install --frozen-lockfile` 뒤 typecheck, lint, format check, 단위 테스트를 실행한다. E2E와 배포는 돌리지 않는다.
+`main`, `feat/**`, `refactor/**`, `fix/**` 대상 PR마다 `.github/workflows/ci.yaml`이 Node 24와 Bun 1.4.4로 `bun install --frozen-lockfile` 뒤 typecheck, lint, format check, 단위 테스트를 실행한다. E2E와 배포는 돌리지 않는다.
 
-관리자 웹은 레포를 직접 연결한 Amplify가 `amplify.yml`로 빌드한다(Node 26, Bun 1.4.4, `bun install --frozen-lockfile` → `bun run build`, 산출물 `dist`). 주소는 `https://admin.archivelink.app`이고 한 배포가 개발·운영 서버를 모두 쓴다. Amplify 콘솔 설정(레포·브랜치 연결, 도메인, 정적 파일이 아닌 경로를 `/index.html`로 보내는 SPA 200 rewrite, PR 미리보기 끔, 환경 변수)은 사용자가 직접 한다. 환경 변수는 `VITE_GOOGLE_CLIENT_ID`가 필수이고, `VITE_PROD_GOOGLE_CLIENT_ID`·`VITE_DEV_API_BASE_URL`·`VITE_PROD_API_BASE_URL`은 기본값과 다를 때만 준다.
+관리자 웹은 레포를 직접 연결한 Amplify가 `amplify.yml`로 빌드한다(Node 24, Bun 1.4.4, `bun install --frozen-lockfile` → `bun run build`, 산출물 `dist`). 주소는 `https://admin.archivelink.app`이고 한 배포가 개발·운영 서버를 모두 쓴다. Amplify 콘솔 설정(레포·브랜치 연결, 도메인, 정적 파일이 아닌 경로를 `/index.html`로 보내는 SPA 200 rewrite, PR 미리보기 끔, 환경 변수)은 사용자가 직접 한다. 환경 변수는 `VITE_GOOGLE_CLIENT_ID`가 필수이고, `VITE_PROD_GOOGLE_CLIENT_ID`·`VITE_DEV_API_BASE_URL`·`VITE_PROD_API_BASE_URL`은 기본값과 다를 때만 준다.
