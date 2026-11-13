@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
 import { Navigate } from 'react-router-dom';
-import { env } from '../../lib/env';
-import { ApiError } from '../../lib/api-error';
+import { googleClientId, serverIds, serverLabels } from '../../lib/server';
 import { Button } from '../../components/ui/button';
 import { usePageTitle } from '../../lib/use-page-title';
+import { authCopy } from './copy';
 import { useSession } from './queries';
 import { session } from './session';
 
@@ -19,41 +19,26 @@ declare global {
     google?: { accounts: { id: Gis } };
   }
 }
+const lockedKeys = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' ']);
 export function LoginPage() {
   const state = useSession();
   const target = useRef<HTMLDivElement>(null);
-  const busy = useRef(false);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState('');
+  const [scriptFailed, setScriptFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const clientId = googleClientId(state.server);
+  const pending = state.pending === true;
+  const locked = pending || state.status === 'loading';
+  const notice = state.status === 'guest' ? state.notice : undefined;
   usePageTitle('로그인');
   useEffect(() => {
-    if (!env.googleClientId || pending) return;
+    if (!clientId || pending) return;
     let active = true;
     const element = target.current;
     const render = () => {
       if (!active || !target.current || !window.google?.accounts.id.renderButton) return;
       window.google.accounts.id.initialize({
-        client_id: env.googleClientId,
-        callback: (response) => {
-          if (busy.current) return;
-          busy.current = true;
-          setPending(true);
-          setError('');
-          void session
-            .login(response.credential)
-            .catch((cause: unknown) => {
-              setError(
-                cause instanceof ApiError && cause.status === 403
-                  ? '관리자 계정이 아니에요'
-                  : '로그인하지 못했어요. 다시 시도해 주세요',
-              );
-            })
-            .finally(() => {
-              busy.current = false;
-              setPending(false);
-            });
-        },
+        client_id: clientId,
+        callback: (response) => void session.login(response.credential),
       });
       window.google.accounts.id.renderButton(target.current, {
         type: 'standard',
@@ -68,7 +53,7 @@ export function LoginPage() {
     script.async = true;
     script.onload = render;
     script.onerror = () => {
-      if (active) setError('Google 로그인을 불러오지 못했어요. 다시 시도해 주세요');
+      if (active) setScriptFailed(true);
     };
     if (window.google?.accounts.id.renderButton) render();
     else document.head.append(script);
@@ -77,7 +62,13 @@ export function LoginPage() {
       script.remove();
       element?.replaceChildren();
     };
-  }, [pending, attempt]);
+  }, [clientId, pending, attempt]);
+  const handleBlocked = (event: SyntheticEvent) => {
+    if (locked) event.preventDefault();
+  };
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (locked && lockedKeys.has(event.key)) event.preventDefault();
+  };
   if (state.status === 'authenticated') return <Navigate to="/providers" replace />;
   return (
     <main className="login-shell" id="main-content">
@@ -86,29 +77,63 @@ export function LoginPage() {
           ALink <small>관리자</small>
         </p>
         <h1 id="login-heading">관리자 로그인</h1>
-        {state.reason && <p role="status">{state.reason}</p>}
-        {state.reason?.startsWith('로그아웃 요청') && (
-          <Button onClick={() => void session.logout()}>로그아웃 다시 시도</Button>
-        )}
+        <fieldset
+          className="server-select"
+          aria-disabled={locked || undefined}
+          onMouseDown={handleBlocked}
+          onClick={handleBlocked}
+          onKeyDown={handleKeyDown}
+        >
+          <legend>{authCopy.serverGroup}</legend>
+          <div className="server-options">
+            {serverIds.map((id) => (
+              <label key={id} data-server={id}>
+                <input
+                  type="radio"
+                  name="server"
+                  value={id}
+                  checked={state.server === id}
+                  aria-disabled={locked || undefined}
+                  onChange={() => session.select(id)}
+                />
+                {serverLabels[id]}
+              </label>
+            ))}
+          </div>
+        </fieldset>
         {pending ? (
-          <p role="status">로그인 중이에요…</p>
+          <p className="login-pending" role="status">
+            {authCopy.signingIn(state.server)}
+          </p>
         ) : (
           <div className="gis-button" ref={target} />
         )}
-        {!env.googleClientId && <p role="status">Google 로그인 설정이 필요해요</p>}
-        {error && (
-          <>
-            <p role="alert">{error}</p>
-            <Button
-              onClick={() => {
-                setError('');
-                setAttempt((value) => value + 1);
-              }}
-            >
-              다시 시도
-            </Button>
-          </>
-        )}
+        <div className="login-notice">
+          {notice === 'expired' && <p role="status">{authCopy.notices.expired(state.server)}</p>}
+          {notice && notice !== 'expired' && (
+            <p role="alert">{authCopy.notices[notice](state.server)}</p>
+          )}
+          {notice === 'offline' && (
+            <Button onClick={() => void session.retry()}>{authCopy.retry}</Button>
+          )}
+          {notice === 'logout-failed' && (
+            <Button onClick={() => void session.logout()}>{authCopy.logoutRetry}</Button>
+          )}
+          {!clientId && <p role="status">{authCopy.gisMissing}</p>}
+          {scriptFailed && (
+            <>
+              <p role="alert">{authCopy.gisFailed}</p>
+              <Button
+                onClick={() => {
+                  setScriptFailed(false);
+                  setAttempt((value) => value + 1);
+                }}
+              >
+                {authCopy.retry}
+              </Button>
+            </>
+          )}
+        </div>
       </section>
     </main>
   );

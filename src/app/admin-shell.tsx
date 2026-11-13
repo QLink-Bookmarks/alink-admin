@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { Button } from '../components/ui/button';
+import { AccessDenied } from '../features/auth/access-denied';
 import { useSession } from '../features/auth/queries';
+import { ServerBadge } from '../features/auth/server-badge';
 import { session } from '../features/auth/session';
 
 export function AdminShell() {
@@ -41,16 +43,7 @@ export function AdminShell() {
         <p role="status">세션 확인 중이에요…</p>
       </main>
     );
-  if (state.status === 'denied')
-    return (
-      <main className="login-shell">
-        <section className="login-card" role="alert">
-          <h1>접근 권한이 없어요</h1>
-          <p>관리자 권한을 확인한 뒤 다시 로그인해 주세요</p>
-          <Button onClick={() => void session.logout()}>다시 로그인</Button>
-        </section>
-      </main>
-    );
+  if (state.status === 'denied') return <AccessDenied server={state.server} />;
   if (state.status !== 'authenticated') return <Navigate to="/login" replace />;
   return (
     <>
@@ -74,11 +67,13 @@ export function AdminShell() {
             ))}
           </nav>
           <div className="account-wide">
-            <strong>{state.profile?.nickname}</strong>
+            <ServerBadge server={state.server} />
+            <strong title={state.profile?.nickname}>{state.profile?.nickname}</strong>
             <span className="badge">{state.profile?.role}</span>
             <Button onClick={() => void session.logout()}>로그아웃</Button>
           </div>
           <div className="account-mobile">
+            <ServerBadge server={state.server} />
             <Button aria-expanded={accountOpen} onClick={() => setAccountOpen(!accountOpen)}>
               계정
             </Button>
