@@ -3,7 +3,7 @@ frontend:
   phases:
     preBuild:
       commands:
-        - nvm ls
+        - nvm ls || true
         - nvm install 24
         - nvm use 24
         - curl -fsSL https://bun.sh/install | bash -s "bun-v1.4.4"
