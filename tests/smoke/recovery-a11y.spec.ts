@@ -6,7 +6,7 @@ test('expired sessions remove protected content after another tab signs out', as
   await page.goto('/providers/1');
   await expect(page.getByLabel('기본 URL')).toBeVisible();
   await page.clock.install();
-  state.authenticated = false;
+  state.sessions.dev = false;
   await page.clock.fastForward(16 * 60_000);
   await page.getByRole('link', { name: '피드백', exact: true }).click();
   await expect(page).toHaveURL(/\/login$/);

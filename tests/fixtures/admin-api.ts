@@ -1,5 +1,6 @@
 import type { Model, ProviderDetail } from '../../src/features/providers/api';
 import type { Post } from '../../src/features/announcements/api';
+import type { ServerId } from '../../src/lib/server';
 
 const timestamp = '2026-11-11T09:00:00Z';
 export function createFixture() {
@@ -68,8 +69,9 @@ export function createFixture() {
   return {
     providers,
     posts,
-    authenticated: true,
+    sessions: { dev: true, prod: true } as Record<ServerId, boolean>,
     role: 'ADMIN',
+    nickname: '김관리',
     deny: false,
     fail: '' as string,
     failStatus: 500,
@@ -77,7 +79,12 @@ export function createFixture() {
     delay: 0,
     slowQuery: '',
     signForbidden: false,
+    offline: [] as ServerId[],
+    hang: '',
+    expireOnData: false,
     requests: [] as {
+      server: ServerId;
+      origin: string;
       method: string;
       path: string;
       body: Record<string, unknown>;
@@ -85,6 +92,8 @@ export function createFixture() {
     }[],
   };
 }
+export const fixtureServer = (url: URL): ServerId =>
+  url.hostname === 'api.archivelink.app' ? 'prod' : 'dev';
 export type Fixture = ReturnType<typeof createFixture>;
 export type FixtureResponse = { status: number; data?: unknown; code?: string; abort?: boolean };
 export async function handleFixture(
@@ -96,7 +105,17 @@ export async function handleFixture(
 ): Promise<FixtureResponse> {
   const url = new URL(input, 'http://localhost');
   const path = url.pathname;
-  state.requests.push({ method, path: `${path}${url.search}`, body, headers });
+  const server = fixtureServer(url);
+  state.requests.push({
+    server,
+    origin: url.origin,
+    method,
+    path: `${path}${url.search}`,
+    body,
+    headers,
+  });
+  if (state.offline.includes(server)) return { status: 0, abort: true };
+  if (state.hang && `${method} ${path}` === state.hang) return new Promise(() => {});
   if (method === 'GET' && state.slowQuery && url.searchParams.get('query') === state.slowQuery)
     await new Promise((resolve) => setTimeout(resolve, 700));
   const ok = (data: unknown = null): FixtureResponse => ({ status: 200, data });
@@ -108,20 +127,29 @@ export async function handleFixture(
       ? { status: 0, abort: true }
       : fail(state.failStatus, state.failCode);
   if (path.endsWith('/signout')) {
-    state.authenticated = false;
+    if (headers.authorization !== `Bearer fixture-access-${server}`)
+      return fail(401, 'AUTH_401_0001');
+    state.sessions[server] = false;
     return ok();
   }
   if (path.endsWith('/sign')) {
     if (state.signForbidden) return fail(403, 'AUTH_403_0002');
-    state.authenticated = true;
-    return ok({ accessToken: 'fixture-access' });
+    state.sessions[server] = true;
+    return ok({ accessToken: `fixture-access-${server}` });
   }
   if (path.endsWith('/token/refresh'))
     return state.deny
       ? fail(403, 'AUTH_403_0002')
-      : state.authenticated
-        ? ok({ accessToken: 'fixture-access' })
+      : state.sessions[server]
+        ? ok({ accessToken: `fixture-access-${server}` })
         : fail(401, 'AUTH_401_0001');
+  if (headers.authorization && headers.authorization !== `Bearer fixture-access-${server}`)
+    return fail(401, 'AUTH_401_0001');
+  if (state.expireOnData && path !== '/api/users/me') {
+    state.expireOnData = false;
+    state.sessions[server] = false;
+    return fail(401, 'AUTH_401_0001');
+  }
   if (
     state.deny &&
     (path.includes('/ai/') ||
@@ -130,7 +158,7 @@ export async function handleFixture(
       url.searchParams.get('type') === 'FEEDBACK')
   )
     return fail(403, 'AI_403_0002');
-  if (path === '/api/users/me') return ok({ nickname: '운영자', role: state.role });
+  if (path === '/api/users/me') return ok({ nickname: state.nickname, role: state.role });
   if (path === '/api/ai/providers' && method === 'GET')
     return ok(
       state.providers.map((provider) => ({
@@ -240,4 +268,4 @@ export async function handleFixture(
   }
   return fail(404, 'COMMON_404_0001');
 }
-export const gisStub = `window.google={accounts:{id:{initialize(options){window.fixtureCredential=()=>options.callback({credential:'fixture-google-id'});},renderButton(element){element.replaceChildren();const button=document.createElement('button');button.textContent='Google로 로그인';button.onclick=()=>window.fixtureCredential();element.append(button);}}}};`;
+export const gisStub = `window.google={accounts:{id:{initialize(options){(window.fixtureClientIds??=[]).push(options.client_id);window.fixtureCredential=()=>options.callback({credential:'fixture-google-id'});},renderButton(element){element.replaceChildren();const button=document.createElement('button');button.textContent='Google로 로그인';button.onclick=()=>window.fixtureCredential();element.append(button);}}}};`;

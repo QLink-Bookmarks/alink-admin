@@ -1,19 +1,29 @@
 import { ApiError } from '../../lib/api-error';
-import { authRequest, refreshToken, signIn, signOut, type Profile } from './api';
+import { readLastServer, saveLastServer, type ServerId } from '../../lib/server';
+import { authRequest, refreshToken, signIn, signOut, type AuthOptions, type Profile } from './api';
 
+export type Notice = 'expired' | 'forbidden' | 'failed' | 'offline' | 'logout-failed';
 type Session = {
   status: 'loading' | 'guest' | 'authenticated' | 'denied';
+  server: ServerId;
   profile?: Profile;
-  reason?: string;
+  notice?: Notice;
+  pending?: boolean;
 };
-let snapshot: Session = { status: 'loading' };
+type SessionState = Omit<Session, 'server'>;
+export const responseLimit = 15_000;
+let server = readLastServer();
+let snapshot: Session = { status: 'loading', server };
 let accessToken: string | undefined;
 let expiresAt = 0;
 let generation = 0;
 let clearCache = () => {};
 let refreshing: Promise<void> | undefined;
 let booting: Promise<void> | undefined;
+let attempting: Promise<void> | undefined;
+let retryTask: (() => Promise<void>) | undefined;
 const listeners = new Set<() => void>();
+const adminRoles = new Set(['ADMIN', 'SUPER_ADMIN']);
 const deniedCodes = new Set([
   'AUTH_403_0002',
   'AI_403_0002',
@@ -24,8 +34,9 @@ const deniedCodes = new Set([
   'POST_404_0001',
   'USER_404_0001',
 ]);
-function publish(value: Session) {
-  snapshot = value;
+const isOffline = (error: unknown) => error instanceof ApiError && error.status === 0;
+function publish(value: SessionState) {
+  snapshot = { ...value, server };
   listeners.forEach((listener) => listener());
 }
 function storeToken(token: string) {
@@ -40,31 +51,31 @@ function storeToken(token: string) {
     expiresAt = Date.now() + 15 * 60_000;
   }
 }
-function endSession(denied: boolean, expired = true) {
+function endSession(denied: boolean, notice?: Notice, retry?: () => Promise<void>) {
   const token = accessToken;
   generation++;
   accessToken = undefined;
+  retryTask = retry;
   clearCache();
-  publish({
-    status: denied ? 'denied' : 'guest',
-    reason: expired ? '세션이 만료됐어요' : undefined,
-  });
-  if (denied) void signOut(token).catch(() => {});
+  publish(denied ? { status: 'denied' } : { status: 'guest', notice });
+  if (denied) void signOut(server, token).catch(() => {});
 }
-async function refresh() {
+function refresh(timeout?: number) {
   if (!refreshing) {
     const current = generation;
-    refreshing = refreshToken()
+    const restoring = snapshot.status === 'loading' || snapshot.pending === true;
+    refreshing = refreshToken(server, timeout)
       .then((result) => {
         if (generation !== current) throw new ApiError(401);
         storeToken(result.accessToken);
       })
       .catch((error: unknown) => {
-        if (generation === current)
-          endSession(
-            error instanceof ApiError && deniedCodes.has(error.code),
-            snapshot.status !== 'loading',
-          );
+        if (generation === current) {
+          const denied = error instanceof ApiError && deniedCodes.has(error.code);
+          if (isOffline(error)) endSession(denied, 'offline', retryRestore);
+          else if (!restoring) endSession(denied, 'expired');
+          else endSession(denied);
+        }
         throw error;
       })
       .finally(() => {
@@ -72,6 +83,71 @@ async function refresh() {
       });
   }
   return refreshing;
+}
+async function loadProfile(timeout?: number) {
+  const profile = await session.request<Profile>('/api/users/me', { timeout });
+  if (!adminRoles.has(profile.role)) {
+    endSession(true);
+    return;
+  }
+  publish({ status: 'authenticated', profile });
+}
+async function restoreSession() {
+  const current = generation;
+  try {
+    await refresh(responseLimit);
+    await loadProfile(responseLimit);
+  } catch (error) {
+    if (generation !== current || (snapshot.status !== 'loading' && !snapshot.pending)) return;
+    if (isOffline(error)) endSession(false, 'offline', retryRestore);
+    else endSession(false);
+  }
+}
+function retryRestore() {
+  publish({ status: 'guest', pending: true });
+  return restoreSession();
+}
+async function signInWith(credential: string) {
+  await session.bootstrap();
+  if (snapshot.status === 'authenticated' || snapshot.pending) return;
+  const target = server;
+  const current = ++generation;
+  retryTask = undefined;
+  publish({ status: 'guest', pending: true });
+  try {
+    const result = await signIn(target, credential, responseLimit);
+    if (current !== generation) return;
+    storeToken(result.accessToken);
+    const profile = await authRequest<Profile>(target, '/api/users/me', {
+      accessToken,
+      timeout: responseLimit,
+    });
+    if (current !== generation) return;
+    if (!adminRoles.has(profile.role)) throw new ApiError(403);
+    clearCache();
+    saveLastServer(target);
+    publish({ status: 'authenticated', profile });
+  } catch (error) {
+    if (current !== generation) return;
+    const token = accessToken;
+    accessToken = undefined;
+    if (token && !isOffline(error)) void signOut(target, token).catch(() => {});
+    if (isOffline(error)) {
+      retryTask = () => signInWith(credential);
+      publish({ status: 'guest', notice: 'offline' });
+    } else
+      publish({
+        status: 'guest',
+        notice: error instanceof ApiError && error.status === 403 ? 'forbidden' : 'failed',
+      });
+  }
+}
+function attempt(task: () => Promise<void>) {
+  if (!attempting)
+    attempting = task().finally(() => {
+      attempting = undefined;
+    });
+  return attempting;
 }
 export const session = {
   subscribe(listener: () => void) {
@@ -87,80 +163,81 @@ export const session = {
   suspend() {
     generation++;
     accessToken = undefined;
+    retryTask = undefined;
     clearCache();
     publish({ status: 'loading' });
   },
-  async restore() {
-    try {
-      await refresh();
-      await session.loadProfile();
-    } catch {
-      if (snapshot.status === 'loading') publish({ status: 'guest' });
-    }
-  },
+  restore: restoreSession,
   bootstrap() {
-    if (!booting)
-      booting = (async () => {
-        try {
-          await refresh();
-          await session.loadProfile();
-        } catch {
-          if (snapshot.status === 'loading') publish({ status: 'guest' });
-        }
-      })();
+    if (!booting) booting = restoreSession();
     return booting;
   },
-  async loadProfile() {
-    const profile = await session.request<Profile>('/api/users/me');
-    if (!['ADMIN', 'SUPER_ADMIN'].includes(profile.role)) {
-      endSession(true);
+  select(next: ServerId) {
+    if (
+      next === server ||
+      snapshot.status === 'authenticated' ||
+      snapshot.status === 'loading' ||
+      snapshot.pending
+    )
       return;
-    }
-    publish({ status: 'authenticated', profile });
+    server = next;
+    retryTask = undefined;
+    publish({ status: 'guest' });
   },
-  async login(credential: string) {
-    await session.bootstrap();
-    const current = generation;
-    const result = await signIn(credential);
-    if (current !== generation) return;
-    storeToken(result.accessToken);
-    await session.loadProfile();
+  leaveDenied() {
+    if (snapshot.status === 'denied') publish({ status: 'guest' });
+  },
+  login(credential: string) {
+    return attempt(() => signInWith(credential));
+  },
+  retry() {
+    const task = retryTask;
+    if (!task || snapshot.pending) return Promise.resolve();
+    return attempt(task);
   },
   async logout() {
     const token = accessToken;
+    const target = server;
     const pendingRefresh = refreshing;
-    endSession(false, false);
+    endSession(false);
+    const current = generation;
     try {
       await pendingRefresh?.catch(() => {});
       try {
-        await signOut(token);
+        await signOut(target, token);
       } catch (cause) {
         if (!(cause instanceof ApiError) || cause.status !== 401) throw cause;
-        const renewed = await refreshToken();
-        await signOut(renewed.accessToken);
+        const renewed = await refreshToken(target);
+        await signOut(target, renewed.accessToken);
       }
     } catch {
-      publish({ status: 'guest', reason: '로그아웃 요청을 완료하지 못했어요. 다시 시도해 주세요' });
+      if (generation === current && server === target && !snapshot.pending)
+        publish({ status: 'guest', notice: 'logout-failed' });
     }
   },
-  async request<T>(path: `/api/${string}`, options: RequestInit = {}): Promise<T> {
+  async request<T>(path: `/api/${string}`, options: Omit<AuthOptions, 'accessToken'> = {}) {
     const current = generation;
-    if (!accessToken || Date.now() >= expiresAt) await refresh();
+    const target = server;
+    const renew = async () => {
+      await refresh();
+      if (generation !== current) throw new ApiError(401);
+    };
+    if (!accessToken || Date.now() >= expiresAt) await renew();
     try {
       let result: T;
       try {
-        result = await authRequest<T>(path, options, accessToken);
+        result = await authRequest<T>(target, path, { ...options, accessToken });
       } catch (error) {
         if (!(error instanceof ApiError) || error.status !== 401) throw error;
-        await refresh();
-        result = await authRequest<T>(path, options, accessToken);
+        await renew();
+        result = await authRequest<T>(target, path, { ...options, accessToken });
       }
       if (generation !== current) throw new ApiError(401);
       return result;
     } catch (error) {
       if (error instanceof ApiError && current === generation) {
         if (deniedCodes.has(error.code)) endSession(true);
-        else if (error.status === 401) endSession(false);
+        else if (error.status === 401) endSession(false, 'expired');
       }
       throw error;
     }

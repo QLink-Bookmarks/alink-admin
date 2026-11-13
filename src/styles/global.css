@@ -21,6 +21,8 @@
   --border: 220 13% 84%;
   --input: 220 9% 52%;
   --ring: 220 9% 46%;
+  --server-prod: 36 96% 50%;
+  --server-prod-foreground: 28 70% 9%;
   --radius: 0.875rem;
 }
 
@@ -45,6 +47,7 @@
     --border: 222 14% 25%;
     --input: 218 12% 53%;
     --ring: 218 16% 79%;
+    --server-prod: 38 92% 56%;
   }
 }
 
@@ -90,9 +93,10 @@ a {
 .login-shell {
   min-height: 100svh;
   display: grid;
-  place-items: center;
-  padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right))
-    max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+  place-items: start center;
+  padding: max(24px, min(14vh, 120px), env(safe-area-inset-top))
+    max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom))
+    max(24px, env(safe-area-inset-left));
 }
 .login-card {
   width: min(100%, 400px);
@@ -355,6 +359,134 @@ p {
 }
 .login-card [role] {
   margin: 16px 0;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.server-select {
+  width: min(100%, 280px);
+  min-inline-size: 0;
+  margin: 0 auto 16px;
+  padding: 0;
+  border: 0;
+}
+.server-select legend {
+  margin: 0 0 8px;
+  padding: 0;
+  font-size: 13px;
+  color: hsl(var(--muted-foreground));
+}
+.server-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid hsl(var(--input));
+  border-radius: 11px;
+  background: hsl(var(--muted));
+}
+.server-options label {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+}
+.server-options input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+.server-options label:has(input:checked) {
+  border-color: hsl(var(--foreground));
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+}
+.server-options label[data-server='prod']:has(input:checked) {
+  background: hsl(var(--server-prod));
+  color: hsl(var(--server-prod-foreground));
+}
+.server-options label:has(input:focus-visible) {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+.server-select[aria-disabled='true'] label {
+  cursor: default;
+}
+.server-select[aria-disabled='true'] label:not(:has(input:checked)) {
+  opacity: 0.55;
+}
+.login-card .login-pending {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  margin: 0;
+}
+.login-notice {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+.login-notice:empty {
+  display: none;
+}
+.login-card .login-notice [role] {
+  margin: 0;
+}
+.login-notice [tabindex='-1']:focus {
+  outline: none;
+}
+.gis-button[data-pending] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.denied-card p[role='alert'] {
+  margin: 0 0 20px;
+  word-break: keep-all;
+  text-wrap: balance;
+}
+.server-badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: hsl(var(--secondary));
+  color: hsl(var(--foreground));
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.server-badge[data-server='prod'] {
+  background: hsl(var(--server-prod));
+  color: hsl(var(--server-prod-foreground));
+}
+.account-wide strong {
+  max-width: 10em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .provider-head {
   padding: 20px;
@@ -720,7 +852,9 @@ dialog > p {
     display: none;
   }
   .account-mobile {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
   .header-inner nav {
     order: 3;

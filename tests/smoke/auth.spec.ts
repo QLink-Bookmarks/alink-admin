@@ -5,19 +5,21 @@ test('GIS credential login, permission rejection, network retry and duplicate pr
   page,
 }) => {
   const state = await installFixture(page);
-  state.authenticated = false;
+  state.sessions.dev = false;
   await page.goto('/providers/1');
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByRole('button', { name: 'Google로 로그인' })).toBeVisible();
   expect(await page.getByRole('button').count()).toBe(1);
   state.signForbidden = true;
   await page.getByRole('button', { name: 'Google로 로그인' }).click();
-  await expect(page.getByRole('alert')).toHaveText('관리자 계정이 아니에요');
+  await expect(page.getByRole('alert')).toHaveText('개발 서버의 관리자 계정이 아니에요');
   state.signForbidden = false;
   state.fail = 'POST /api/auth/admin/sign';
-  state.failStatus = 0;
+  state.failStatus = 401;
   await page.getByRole('button', { name: 'Google로 로그인' }).click();
-  await expect(page.getByRole('alert')).toContainText('로그인하지 못했어요');
+  await expect(page.getByRole('alert')).toHaveText(
+    '개발 서버에 로그인하지 못했어요. Google 로그인을 다시 눌러 주세요',
+  );
   state.fail = '';
   state.delay = 350;
   await page.getByRole('button', { name: 'Google로 로그인' }).click();
@@ -31,7 +33,7 @@ test('GIS credential login, permission rejection, network retry and duplicate pr
   await expect(page).toHaveURL(/\/providers$/);
   expect(
     await page.evaluate(() => ({ local: { ...localStorage }, session: { ...sessionStorage } })),
-  ).toEqual({ local: {}, session: {} });
+  ).toEqual({ local: { 'alink-admin:last-server': 'dev' }, session: {} });
 });
 
 test('restores deep links for both roles, clears revoked data, and logout blocks history', async ({
@@ -58,7 +60,7 @@ test('restores deep links for both roles, clears revoked data, and logout blocks
   await page.reload();
   await expect(page.getByRole('heading', { name: '접근 권한이 없어요' })).toBeVisible();
   state.deny = false;
-  state.authenticated = true;
+  state.sessions.dev = true;
   await page.reload();
   await expect(page.getByRole('heading', { name: '피드백', exact: true })).toBeVisible();
   await page.getByRole('link', { name: '제공자 및 모델', exact: true }).click();
